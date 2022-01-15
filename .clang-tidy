@@ -1,4 +1,4 @@
-HeaderFilterRegex: 'src/(?!external).*\.hpp'
+HeaderFilterRegex: 'src/(?!submodules).*\.hpp'
 
 Checks: >
     *,
@@ -25,6 +25,7 @@ Checks: >
     -hicpp-no-array-decay,
     -hicpp-avoid-c-arrays,
     -hicpp-vararg,
+    -hicpp-member-init,
     -llvm-header-guard,
     -llvm-include-order,
     -misc-non-private-member-variables-in-classes,

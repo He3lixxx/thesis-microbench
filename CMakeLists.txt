@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5.1)
+cmake_minimum_required(VERSION 3.13)
 project(ThesisMicroBenchmarks CXX)
 
 # https://stackoverflow.com/a/64294837/12345551
@@ -68,17 +68,15 @@ function (exclude_items aItems aRegEx)
 endfunction (exclude_items)
 
 file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp src/*.hpp)
-exclude_items(ALL_SOURCE_FILES ".*external/.*")
 exclude_items(ALL_SOURCE_FILES ".*submodules/.*")
 
 file(GLOB_RECURSE ALL_CPP_FILES src/*.cpp)
-exclude_items(ALL_CPP_FILES ".*external/.*")
 exclude_items(ALL_CPP_FILES ".*submodules/.*")
 
 add_custom_target(clang-format COMMAND clang-format -style=file -i${INCLUDE_DIRECTORIES} ${ALL_SOURCE_FILES})
 add_custom_target(clang-tidy COMMAND run-clang-tidy-13 -quiet ${ALL_CPP_FILES})
 add_custom_target(cppcheck COMMAND cppcheck --enable=all --quiet --project=compile_commands.json --platform=unix64
-    -DINTPTR_MAX=9223372036854775807LL --max-configs=32 --suppress="*:*external/*" --suppress="*:*submodules/*"
+    -DINTPTR_MAX=9223372036854775807LL --max-configs=32 --suppress="*:*submodules/*"
     --suppress=unmatchedSuppression --suppress=missingIncludeSystem --suppress=shadowFunction --inline-suppr)
 add_custom_target(cpplint COMMAND cpplint --linelength=120 --quiet ${ALL_SOURCE_FILES})
 

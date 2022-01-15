@@ -1,28 +1,38 @@
 #include <fmt/compile.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <cxxopts.hpp>
 
 #include <rapidjson/document.h>
 
+#include <algorithm>
 #include <atomic>
+#include <charconv>
+#include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <random>
 #include <sstream>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 using std::string_literals::operator""s;
 
 constexpr size_t cacheline_size = 64;
 struct AlignedAtomicSizeT {
-    alignas(cacheline_size) std::atomic<size_t> value;
+    alignas(cacheline_size) std::atomic<size_t> value = 0;
 };
 
 constexpr size_t RUN_SIZE = 1024ULL * 16;
 
 // should be multiple of 8
 constexpr size_t HASH_BYTES = 32;  // 256bit = 32 byte
+
+constexpr bool debug_output = false;
 
 struct NativeTuple {
     uint64_t id;
@@ -33,23 +43,115 @@ struct NativeTuple {
     float load_avg_15;
     unsigned char container_id[HASH_BYTES];  // NOLINT(cppcoreguidelines-avoid-c-arrays)
     // std::string command_line;
+
+    void set_container_id_from_hex_string(const char* str, size_t length) {
+        while (std::isspace(static_cast<unsigned char>(*str))) {
+            str++;
+            length--;
+        }
+
+        if (length != 2 * HASH_BYTES) {
+            throw std::runtime_error("Unexpected input for container_id");
+        }
+
+        for (size_t i = 0; i < HASH_BYTES; ++i) {
+            std::from_chars(str + 2 * i, str + 2 * i + 2, container_id[i], 16);
+        }
+    }
+};
+
+template <>
+struct fmt::formatter<NativeTuple> {
+    [[nodiscard]] static constexpr auto parse(const format_parse_context& ctx)
+        -> decltype(ctx.begin()) {
+        return std::find(ctx.begin(), ctx.end(), '}');
+    }
+
+    template <typename FormatContext>
+    auto format(const NativeTuple& tup, FormatContext& ctx) const  // NOLINT(runtime/references)
+        -> decltype(ctx.out()) {
+        return format_to(ctx.out(), FMT_COMPILE(R"(NativeTuple(
+    id={},
+    timestamp={},
+    load={:f},
+    load_avg_1={:f},
+    load_avg_5={:f},
+    load_avg_15={:f},
+    container_id={:02x}
+)
+)"),
+                         tup.id, tup.timestamp, tup.load, tup.load_avg_1, tup.load_avg_5,
+                         tup.load_avg_15, fmt::join(tup.container_id, ""));
+    }
 };
 
 // https://github.com/google/benchmark/blob/main/include/benchmark/benchmark.h#L412
 template <class Tp>
 inline void DoNotOptimize(Tp const& value) {
-    asm volatile("" : : "r,m"(value) : "memory");
+    asm volatile("" : : "r,m"(value) : "memory");  // NOLINT(hicpp-no-assembler)
 }
 
-inline void generate_json(std::atomic<unsigned char*>* memory_ptr,
-                          unsigned char* const memory_end,
-                          uint64_t* tuple_count) {
+inline void serialize_json(const NativeTuple& tuple, fmt::memory_buffer* buf) {
     // TODO: What happens if the tuples have different layout? Does any kind of prediction get
     // worse?
+    // clang-format off
+    fmt::format_to(std::back_inserter(*buf), FMT_COMPILE(R"({{
+"id": {},
+"timestamp": {},
+"load": {:f},
+"load_avg_1": {:f},
+"load_avg_5": {:f},
+"load_avg_15": {:f},
+"container_id": "{:02x}"
+}}
+)"),
+        tuple.id,
+        tuple.timestamp,
+        tuple.load,
+        tuple.load_avg_1,
+        tuple.load_avg_5,
+        tuple.load_avg_15,
+        fmt::join(tuple.container_id, "")
+    );
+    // clang-format on
 
+    buf->push_back('\0');
+}
+
+inline size_t parse_rapidjson(const unsigned char* read_ptr, NativeTuple* tup) {
+    // TODO: Would make sense to re-use this, but that will leak memory(?)
+    rapidjson::Document d;
+
+    // TODO: Insitu-Parsing?
+    d.Parse(reinterpret_cast<const char*>(read_ptr));
+
+    if (!d["id"].IsUint64() || !d["timestamp"].IsUint64() || !d["load"].IsFloat() ||
+        !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() || !d["load_avg_15"].IsFloat() ||
+        !d["container_id"].IsString())
+        throw std::runtime_error("Invalid input tuple");
+
+    tup->id = d["id"].GetUint64();
+    tup->timestamp = d["timestamp"].GetUint64();
+    tup->load = d["load"].GetFloat();
+    tup->load_avg_1 = d["load_avg_1"].GetFloat();
+    tup->load_avg_5 = d["load_avg_5"].GetFloat();
+    tup->load_avg_15 = d["load_avg_15"].GetFloat();
+    tup->set_container_id_from_hex_string(d["container_id"].GetString(),
+                                         d["container_id"].GetStringLength());
+
+    auto tuple_bytes = std::strlen(reinterpret_cast<const char*>(read_ptr)) + 1;
+    return tuple_bytes;
+}
+
+using SerializerFunc = void (*)(const NativeTuple&, fmt::memory_buffer*);
+
+template <SerializerFunc serialize>
+inline void fill_memory(std::atomic<unsigned char*>* memory_ptr,
+                        const unsigned char* const memory_end,
+                        uint64_t* tuple_count) {
     std::random_device dev;
     std::mt19937_64 gen(dev());
-    std::uniform_real_distribution<> load_distribution(0, 1);
+    std::uniform_real_distribution<float> load_distribution(0, 1);
 
     *tuple_count = 0;
 
@@ -57,73 +159,63 @@ inline void generate_json(std::atomic<unsigned char*>* memory_ptr,
     buf.reserve(512);
 
     while (true) {
+        NativeTuple tup;  // NOLINT(cppcoreguidelines-pro-type-member-init)
+        tup.id = gen();
+        tup.timestamp = gen();
+        tup.load = load_distribution(gen);
+        tup.load_avg_1 = load_distribution(gen);
+        tup.load_avg_5 = load_distribution(gen);
+        tup.load_avg_15 = load_distribution(gen);
+        static_assert(HASH_BYTES % 8 == 0);
+        std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id),
+                        sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, gen);
+
         buf.clear();
+        serialize(tup, &buf);
 
-        static_assert(HASH_BYTES == 32);
-        // clang-format off
-        fmt::format_to(std::back_inserter(buf), FMT_COMPILE(R"({{
-"id": {},
-"timestamp": {},
-"load": {:f},
-"load_avg_1": {:f},
-"load_avg_5": {:f},
-"load_avg_15": {:f},
-"container_id": "{:016x}{:016x}{:016x}{:016x}"
-}}
-)"),
-             gen(),
-             gen(),
-             load_distribution(gen),
-             load_distribution(gen),
-             load_distribution(gen),
-             load_distribution(gen),
-             gen(), gen(), gen(), gen()
-        );
-        // clang-format on
-
-        buf.push_back('\0');
-
-        // std::cout << buf.data() << std::endl;
-
-        unsigned char* write_to = memory_ptr->fetch_add(buf.size());
+        unsigned char* write_to = memory_ptr->fetch_add(static_cast<std::ptrdiff_t>(buf.size()));
         if (write_to >= memory_end) {
             break;
         }
         if (memory_end - write_to < static_cast<int64_t>(buf.size())) {
-            std::fill(write_to, memory_end, '\0');
+            memory_ptr->store(write_to);
             break;
         }
 
+        if constexpr (debug_output) {
+            fmt::print("{}", buf.data());
+        }
         std::copy_n(buf.data(), buf.size(), write_to);
         (*tuple_count)++;
     }
 }
 
-inline void thread_func_rapidjson(AlignedAtomicSizeT* counter,
-                                  const std::vector<unsigned char>& memory) {
-    const char* const start_ptr = reinterpret_cast<const char*>(memory.data());
-    const char* read_ptr = start_ptr;
-    const char* const end_ptr = start_ptr + memory.size();
-
-    // TODO: This leaks memory
-    // TODO: Insitu-Parsing?
-
-    rapidjson::Document d;
+using ParseFunc = size_t (*)(const unsigned char*, NativeTuple*);
+template <ParseFunc parse>
+inline void thread_func(AlignedAtomicSizeT* counter, const std::vector<unsigned char>& memory) {
+    const unsigned char* const start_ptr = memory.data();
+    const unsigned char* read_ptr = start_ptr;
+    const unsigned char* const end_ptr = start_ptr + memory.size();
 
     while (true) {
         uint64_t read_assurer = 0;
 
         for (size_t i = 0; i < RUN_SIZE; ++i) {
             if (read_ptr >= end_ptr) {
+                if constexpr (debug_output) {
+                    return;
+                }
                 read_ptr = start_ptr;
             }
 
-            d.Parse(read_ptr);
+            NativeTuple tup;
+            auto read_bytes = parse(read_ptr, &tup);
 
-            read_assurer += d["load_avg_15"].GetFloat() >= 0.99;
-
-            auto tuple_end = std::find(read_ptr, end_ptr, '\0');
-            read_ptr = tuple_end + 1;
+            if constexpr (debug_output) {
+                fmt::print("Thread read tuple {}\n", tup);
+            }
+            read_assurer += tup.load_avg_5 >= 0.99;
+            read_ptr += read_bytes;
         }
 
         DoNotOptimize(read_assurer);
@@ -149,7 +241,7 @@ int main(int argc, char** argv) {
     auto arguments = options.parse(argc, argv);
 
     if (arguments.count("help") != 0) {
-        std::cout << options.help() << std::endl;
+        fmt::print("{}\n", options.help());
         exit(0);  // NOLINT(concurrency-mt-unsafe)
     }
 
@@ -181,7 +273,8 @@ int main(int argc, char** argv) {
     size_t thread_count = arguments["threads"].as<size_t>();
 
     std::map generator_parser_map{
-        std::make_pair("rapidjson"s, std::make_tuple(generate_json, thread_func_rapidjson)),
+        std::make_pair("rapidjson"s,
+                       std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson>)),
     };
     auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
     if (it == generator_parser_map.end()) {
@@ -200,7 +293,7 @@ int main(int argc, char** argv) {
     std::vector<unsigned char> memory(memory_bytes);
     uint64_t tuple_count = 0;
     {
-        std::cout << "Generating tuples for " << memory.size() << "B of memory" << std::endl;
+        fmt::print("Generating tuples for {}B of memory.\n", memory.size());
         auto timestamp = std::chrono::high_resolution_clock::now();
 
         std::atomic<unsigned char*> write_ptr = &memory[0];
@@ -214,10 +307,12 @@ int main(int argc, char** argv) {
         }
         threads.clear();
 
+        memory.resize(write_ptr.load() - &memory[0]);
+        fmt::print("Memory resized to {}B.\n", memory.size());
+
         std::chrono::duration<double> elapsed_seconds =
             std::chrono::high_resolution_clock::now() - timestamp;
-        std::cout << "Generated " << tuple_count << " tuples in " << elapsed_seconds.count() << "s."
-                  << std::endl;
+        fmt::print("Generated {} tuples in {}s.\n", tuple_count, elapsed_seconds.count());
     }
 
     /*
@@ -226,11 +321,11 @@ int main(int argc, char** argv) {
 
     std::vector<AlignedAtomicSizeT> counters(thread_count);
 
+    auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
         threads.emplace_back(thread_func, &counters[i], memory);
     }
 
-    auto timestamp = std::chrono::high_resolution_clock::now();
     while (true) {
         size_t sum = 0;
         for (auto& counter : counters) {
@@ -242,8 +337,8 @@ int main(int argc, char** argv) {
 
         auto iterations_per_second = static_cast<double>(sum) / diff.count();
 
-        std::cerr << iterations_per_second << " tuples per second   = " << 0
-                  << " B/s   = " << 0 / 1e9 << " GB/s" << std::endl;
+        std::cerr << iterations_per_second << " tuples per second" << std::endl;
+
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 }
