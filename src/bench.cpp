@@ -5,6 +5,7 @@
 #include <cxxopts.hpp>
 
 #include <rapidjson/document.h>
+#include <fast_float/fast_float.h>
 
 #include <algorithm>
 #include <atomic>
@@ -118,7 +119,8 @@ inline void serialize_csv(const NativeTuple& tup, fmt::memory_buffer* buf) {
                    fmt::join(tup.container_id, ""));
 }
 
-inline size_t parse_csv(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+
+inline size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
     auto str_ptr = reinterpret_cast<const char*>(read_ptr);
     auto str_len = strlen(str_ptr);
     auto str_end = str_ptr + str_len;
@@ -130,6 +132,23 @@ inline size_t parse_csv(const std::byte* __restrict__ read_ptr, NativeTuple* tup
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_5);
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_15);
     tup->set_container_id_from_hex_string(result.ptr + 1, str_end - result.ptr - 1);
+
+    return str_len + 1;
+}
+
+inline size_t parse_csv_fast_float(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+    auto str_ptr = reinterpret_cast<const char*>(read_ptr);
+    auto str_len = strlen(str_ptr);
+    auto str_end = str_ptr + str_len;
+
+    auto result_ptr = std::from_chars(str_ptr, str_end, tup->id).ptr;
+    result_ptr = std::from_chars(result_ptr + 1, str_end, tup->timestamp).ptr;
+
+    result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load).ptr;
+    result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load_avg_1).ptr;
+    result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load_avg_5).ptr;
+    result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load_avg_15).ptr;
+    tup->set_container_id_from_hex_string(result_ptr + 1, str_end - result_ptr - 1);
 
     return str_len + 1;
 }
@@ -332,7 +351,8 @@ int main(int argc, char** argv) {
                        std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson>)),
         std::make_pair("native"s,
                        std::make_tuple(fill_memory<serialize_native>, thread_func<parse_native>)),
-        std::make_pair("csv"s, std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv>)),
+        std::make_pair("csvstd"s, std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_std>)),
+        std::make_pair("csvfastfloat"s, std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_fast_float>)),
     };
     auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
     if (it == generator_parser_map.end()) {
