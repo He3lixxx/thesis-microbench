@@ -96,6 +96,9 @@ add_compile_options("-Wextra")
 add_compile_options("-march=native")
 add_compile_options("-mtune=native")
 
+# add_compile_options("-v")
+# add_compile_options("-ftime-report")
+
 add_subdirectory(submodules)
 
 add_subdirectory(src)
