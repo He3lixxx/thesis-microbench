@@ -1,4 +1,4 @@
-add_executable(bench bench.cpp)
+add_executable(bench bench.cpp native.cpp csv.cpp json.cpp)
 
 find_package(RapidJSON CONFIG REQUIRED)
 target_link_libraries(bench cxxopts::cxxopts fmt::fmt rapidjson fast_float simdjson)

@@ -74,7 +74,7 @@ file(GLOB_RECURSE ALL_CPP_FILES src/*.cpp)
 exclude_items(ALL_CPP_FILES ".*submodules/.*")
 
 add_custom_target(clang-format COMMAND clang-format -style=file -i${INCLUDE_DIRECTORIES} ${ALL_SOURCE_FILES})
-add_custom_target(clang-tidy COMMAND run-clang-tidy-13 -quiet ${ALL_CPP_FILES})
+add_custom_target(clang-tidy COMMAND run-clang-tidy-13 -quiet -fix ${ALL_CPP_FILES})
 add_custom_target(cppcheck COMMAND cppcheck --enable=all --quiet --project=compile_commands.json --platform=unix64
     -DINTPTR_MAX=9223372036854775807LL --max-configs=32 --suppress="*:*submodules/*"
     --suppress=unmatchedSuppression --suppress=missingIncludeSystem --suppress=shadowFunction --inline-suppr)
