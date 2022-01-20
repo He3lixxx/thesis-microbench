@@ -10,3 +10,6 @@
 [submodule "submodules/fast_float"]
 	path = submodules/fast_float
 	url = https://github.com/fastfloat/fast_float.git
+[submodule "submodules/simdjson"]
+	path = submodules/simdjson
+	url = https://github.com/simdjson/simdjson.git

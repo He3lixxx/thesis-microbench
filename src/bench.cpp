@@ -4,8 +4,10 @@
 #include <fmt/ranges.h>
 #include <cxxopts.hpp>
 
-#include <rapidjson/document.h>
 #include <fast_float/fast_float.h>
+#include <rapidjson/document.h>
+
+#include <simdjson.h>
 
 #include <algorithm>
 #include <atomic>
@@ -35,6 +37,25 @@ constexpr size_t RUN_SIZE = 1024ULL * 16;
 constexpr size_t HASH_BYTES = 32;  // 256bit = 32 byte
 
 constexpr bool debug_output = false;
+constexpr bool use_std_from_chars = false;
+
+constexpr unsigned char parse_hex_char(char c) {
+    return (('a' <= c && c <= 'z') * (c - 'a' + 10) + ('A' <= c && c <= 'Z') * (c - 'A' + 10) +
+            ('0' <= c && c <= '9') * (c - '0'));
+}
+
+constexpr const char* parse_uint_str(const char* str, uint64_t* result) {
+    if constexpr (use_std_from_chars) {
+        return std::from_chars(str, str + 1024, *result).ptr;
+    } else {
+        *result = 0;
+        while ('0' <= *str && *str <= '9') {
+            *result = (*result * 10) + *str - '0';
+            str++;
+        }
+        return str;
+    }
+}
 
 struct NativeTuple {
     uint64_t id;
@@ -46,19 +67,14 @@ struct NativeTuple {
     std::byte container_id[HASH_BYTES];  // NOLINT(cppcoreguidelines-avoid-c-arrays)
     // std::string command_line;
 
-    void set_container_id_from_hex_string(const char* str, size_t length) {
-        while (std::isspace(static_cast<unsigned char>(*str))) {
-            str++;
-            length--;
-        }
-
-        if (length != 2 * HASH_BYTES) {
-            throw std::runtime_error("Unexpected input for container_id");
-        }
-
+    void set_container_id_from_hex_string(const char* str, size_t /*length*/) {
         for (size_t i = 0; i < HASH_BYTES; ++i) {
-            std::from_chars(str + 2 * i, str + 2 * i + 2,
-                            reinterpret_cast<unsigned char&>(container_id[i]), 16);
+            if constexpr (use_std_from_chars)
+                std::from_chars(str + 2 * i, str + 2 * i + 2,
+                                reinterpret_cast<unsigned char&>(container_id[i]), 16);
+            else
+                reinterpret_cast<unsigned char&>(container_id[i]) =
+                    parse_hex_char(*(str + 2 * i)) * 16 + parse_hex_char(*(str + 2 * i + 1));
         }
     }
 };
@@ -99,9 +115,9 @@ inline void DoNotOptimize(Tp const& value) {
  */
 
 inline void serialize_native(const NativeTuple& tup, fmt::memory_buffer* buf) {
-    size_t write_index = buf->size();
+    const size_t write_index = buf->size();
     buf->resize(buf->size() + sizeof(NativeTuple));
-    std::byte* write_ptr = reinterpret_cast<std::byte*>(buf->data() + write_index);
+    std::byte* const write_ptr = reinterpret_cast<std::byte*>(buf->data() + write_index);
     std::copy_n(reinterpret_cast<const std::byte*>(&tup), sizeof(NativeTuple), write_ptr);
 }
 
@@ -119,11 +135,10 @@ inline void serialize_csv(const NativeTuple& tup, fmt::memory_buffer* buf) {
                    fmt::join(tup.container_id, ""));
 }
 
-
 inline size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
-    auto str_ptr = reinterpret_cast<const char*>(read_ptr);
-    auto str_len = strlen(str_ptr);
-    auto str_end = str_ptr + str_len;
+    const auto str_ptr = reinterpret_cast<const char*>(read_ptr);
+    const auto str_len = strlen(str_ptr);
+    const auto str_end = str_ptr + str_len;
 
     auto result = std::from_chars(str_ptr, str_end, tup->id);
     result = std::from_chars(result.ptr + 1, str_end, tup->timestamp);
@@ -137,17 +152,18 @@ inline size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple*
 }
 
 inline size_t parse_csv_fast_float(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
-    auto str_ptr = reinterpret_cast<const char*>(read_ptr);
-    auto str_len = strlen(str_ptr);
-    auto str_end = str_ptr + str_len;
+    const auto str_ptr = reinterpret_cast<const char*>(read_ptr);
+    const auto str_len = strlen(str_ptr);
+    const auto str_end = str_ptr + str_len;
 
-    auto result_ptr = std::from_chars(str_ptr, str_end, tup->id).ptr;
-    result_ptr = std::from_chars(result_ptr + 1, str_end, tup->timestamp).ptr;
+    auto result_ptr = parse_uint_str(str_ptr, &tup->id);
+    result_ptr = parse_uint_str(result_ptr + 1, &tup->timestamp);
 
     result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load).ptr;
     result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load_avg_1).ptr;
     result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load_avg_5).ptr;
     result_ptr = fast_float::from_chars(result_ptr + 1, str_end, tup->load_avg_15).ptr;
+
     tup->set_container_id_from_hex_string(result_ptr + 1, str_end - result_ptr - 1);
 
     return str_len + 1;
@@ -205,10 +221,28 @@ inline size_t parse_rapidjson(const std::byte* __restrict__ read_ptr, NativeTupl
     tup->set_container_id_from_hex_string(d["container_id"].GetString(),
                                           d["container_id"].GetStringLength());
 
-    // tup->load_avg_5 = *reinterpret_cast<const float*>(read_ptr);
-
-    auto tuple_bytes = std::strlen(reinterpret_cast<const char*>(read_ptr)) + 1;
+    const auto tuple_bytes = std::strlen(reinterpret_cast<const char*>(read_ptr)) + 1;
     return tuple_bytes;
+}
+
+inline size_t parse_simdjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+    static thread_local simdjson::ondemand::parser parser;
+    const auto length = std::strlen(reinterpret_cast<const char*>(read_ptr));
+
+    const simdjson::padded_string s(reinterpret_cast<const char*>(read_ptr), length);
+    simdjson::ondemand::document d = parser.iterate(s);
+
+    tup->id = d["id"].get_uint64();
+    tup->timestamp = d["timestamp"].get_uint64();
+    tup->load = d["load"].get_double();
+    tup->load_avg_1 = d["load_avg_1"].get_double();
+    tup->load_avg_5 = d["load_avg_5"].get_double();
+    tup->load_avg_15 = d["load_avg_15"].get_double();
+
+    const std::string_view container_id_view = d["container_id"].get_string();
+    tup->set_container_id_from_hex_string(container_id_view.data(), container_id_view.length());
+
+    return length + 1;
 }
 
 /*
@@ -244,7 +278,7 @@ inline void fill_memory(std::atomic<std::byte*>* memory_ptr,
         buf.clear();
         serialize(tup, &buf);
 
-        std::byte* write_to = memory_ptr->fetch_add(static_cast<std::ptrdiff_t>(buf.size()));
+        std::byte* const write_to = memory_ptr->fetch_add(static_cast<std::ptrdiff_t>(buf.size()));
         if (write_to >= memory_end) {
             break;
         }
@@ -254,7 +288,10 @@ inline void fill_memory(std::atomic<std::byte*>* memory_ptr,
         }
 
         if constexpr (debug_output) {
-            fmt::print("{}", buf.data());
+            fmt::memory_buffer transformed;
+            transformed.resize(buf.size());
+            std::replace_copy(buf.begin(), buf.end(), transformed.begin(), '\0', '\n');
+            fmt::print("{}", transformed.data());
         }
         std::copy_n(buf.data(), buf.size(), reinterpret_cast<unsigned char*>(write_to));
         (*tuple_count)++;
@@ -281,7 +318,7 @@ inline void thread_func(ThreadResult* result, const std::vector<std::byte>& memo
             }
 
             NativeTuple tup;
-            auto read_bytes = parse(read_ptr, &tup);
+            const auto read_bytes = parse(read_ptr, &tup);
 
             if constexpr (debug_output) {
                 fmt::print("Thread read tuple {}\n", tup);
@@ -313,7 +350,7 @@ int main(int argc, char** argv) {
         ("h,help", "Print usage");
     // clang-format on
 
-    auto arguments = options.parse(argc, argv);
+    const auto arguments = options.parse(argc, argv);
 
     if (arguments.count("help") != 0) {
         fmt::print("{}\n", options.help());
@@ -321,18 +358,18 @@ int main(int argc, char** argv) {
     }
 
     size_t suffix_position{};
-    auto memory_bytes_string = arguments["memory"].as<std::string>();
+    const auto memory_bytes_string = arguments["memory"].as<std::string>();
     uint64_t memory_bytes = std::stoll(memory_bytes_string, &suffix_position, 0);
     if (suffix_position == memory_bytes_string.length() - 1) {
-        char suffix = static_cast<char>(
+        const char suffix = static_cast<char>(
             std::tolower(static_cast<unsigned char>(memory_bytes_string.at(suffix_position))));
-        std::map multiplicators{
+        const std::map multiplicators{
             std::make_pair('k', 1000ULL),
             std::make_pair('m', 1000ULL * 1000),
             std::make_pair('g', 1000ULL * 1000 * 1000),
             std::make_pair('t', 1000ULL * 1000 * 1000 * 1000),
         };
-        auto it = multiplicators.find(suffix);
+        const auto it = multiplicators.find(suffix);
         if (it == multiplicators.end()) {
             fmt::print(stderr, "Invalid argument for memory: {}.\n", memory_bytes_string);
             exit(1);  // NOLINT(concurrency-mt-unsafe)
@@ -344,24 +381,28 @@ int main(int argc, char** argv) {
         exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
 
-    size_t thread_count = arguments["threads"].as<size_t>();
+    const size_t thread_count = arguments["threads"].as<size_t>();
 
-    std::map generator_parser_map{
+    const std::map generator_parser_map{
         std::make_pair("rapidjson"s,
                        std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson>)),
+        std::make_pair("simdjson"s,
+                       std::make_tuple(fill_memory<serialize_json>, thread_func<parse_simdjson>)),
         std::make_pair("native"s,
                        std::make_tuple(fill_memory<serialize_native>, thread_func<parse_native>)),
-        std::make_pair("csvstd"s, std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_std>)),
-        std::make_pair("csvfastfloat"s, std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_fast_float>)),
+        std::make_pair("csvstd"s,
+                       std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_std>)),
+        std::make_pair("csvfastfloat"s, std::make_tuple(fill_memory<serialize_csv>,
+                                                        thread_func<parse_csv_fast_float>)),
     };
-    auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
+    const auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
     if (it == generator_parser_map.end()) {
         fmt::print(stderr, "Invalid argument for parser: {}.\n",
                    arguments["parser"].as<std::string>());
         exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
 
-    auto [generator, thread_func] = it->second;
+    const auto [generator, thread_func] = it->second;
 
     /*
      * Input Data Generation
@@ -373,10 +414,10 @@ int main(int argc, char** argv) {
     uint64_t tuple_count{};
     {
         fmt::print("Generating tuples for {}B of memory.\n", memory.size());
-        auto timestamp = std::chrono::high_resolution_clock::now();
+        const auto timestamp = std::chrono::high_resolution_clock::now();
 
         std::atomic<std::byte*> write_ptr = &memory[0];
-        std::byte* write_end = write_ptr + memory.size();
+        const std::byte* write_end = write_ptr + memory.size();
 
         for (size_t i = 0; i < thread_count; ++i) {
             threads.emplace_back(generator, &write_ptr, write_end, &tuple_count);
@@ -389,7 +430,7 @@ int main(int argc, char** argv) {
         memory.resize(write_ptr.load() - &memory[0]);
         fmt::print("Memory resized to {}B.\n", memory.size());
 
-        std::chrono::duration<double> elapsed_seconds =
+        const std::chrono::duration<double> elapsed_seconds =
             std::chrono::high_resolution_clock::now() - timestamp;
         fmt::print("Generated {} tuples in {}s.\n", tuple_count, elapsed_seconds.count());
     }
@@ -412,12 +453,12 @@ int main(int argc, char** argv) {
             tuples_sum += result.tuples_read.exchange(0);
             bytes_sum += result.bytes_read.exchange(0);
         }
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> diff = end - timestamp;
+        const auto end = std::chrono::high_resolution_clock::now();
+        const std::chrono::duration<double> diff = end - timestamp;
         timestamp = end;
 
-        auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
-        auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
+        const auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
+        const auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
 
         fmt::print(stderr, "{:11.6g} t/s,   {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
                    bytes_per_second, bytes_per_second / 1e9);
