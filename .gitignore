@@ -33,5 +33,7 @@
 
 *.swp
 
+.ignore
+
 build
 build-*
