@@ -21,7 +21,7 @@ struct NativeTuple {
     float load_avg_1;
     float load_avg_5;
     float load_avg_15;
-    std::array<std::byte, HASH_BYTES> container_id;  // NOLINT(cppcoreguidelines-avoid-c-arrays)
+    std::array<std::byte, HASH_BYTES> container_id;
     // std::string command_line;
 
     void set_container_id_from_hex_string(const char* str, size_t /*length*/) {
@@ -55,8 +55,7 @@ struct fmt::formatter<NativeTuple> {
     load_avg_5={:f},
     load_avg_15={:f},
     container_id={:02x}
-)
-)",
+))",
                          tup.id, tup.timestamp, tup.load, tup.load_avg_1, tup.load_avg_5,
                          tup.load_avg_15, fmt::join(tup.container_id, ""));
     }
@@ -102,22 +101,21 @@ void fill_memory(std::atomic<std::byte*>* memory_ptr,
 
         buf.clear();
         serialize(tup, &buf);
+        if constexpr (debug_output) {
+            fmt::print("Serialized {}\n", tup);
+        }
 
-        std::byte* const write_to = memory_ptr->fetch_add(static_cast<std::ptrdiff_t>(buf.size()));
-        if (write_to >= memory_end) {
+
+        auto buf_size = static_cast<std::ptrdiff_t>(buf.size());
+        std::byte* const write_to = memory_ptr->fetch_add(buf_size);
+        if (write_to > memory_end) {
             break;
         }
-        if (memory_end - write_to < static_cast<int64_t>(buf.size())) {
+        if (memory_end - write_to < buf_size) {
             memory_ptr->store(write_to);
             break;
         }
 
-        if constexpr (debug_output) {
-            fmt::memory_buffer transformed;
-            transformed.resize(buf.size());
-            std::replace_copy(buf.begin(), buf.end(), transformed.begin(), '\0', '\n');
-            fmt::print("{}", transformed.data());
-        }
         std::copy_n(buf.data(), buf.size(), reinterpret_cast<unsigned char*>(write_to));
         (*tuple_count)++;
     }

@@ -14,7 +14,7 @@ IMPL_VISIBILITY void serialize_native(const NativeTuple& tup, fmt::memory_buffer
 }
 
 IMPL_VISIBILITY size_t parse_native(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
-    std::copy_n(read_ptr, sizeof(NativeTuple), reinterpret_cast<std::byte*>(tup));
+    *tup = *reinterpret_cast<const NativeTuple*>(read_ptr);
     return sizeof(NativeTuple);
 }
 
