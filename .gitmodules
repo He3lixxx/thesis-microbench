@@ -13,3 +13,6 @@
 [submodule "submodules/simdjson"]
 	path = submodules/simdjson
 	url = https://github.com/simdjson/simdjson.git
+[submodule "submodules/flatbuffers"]
+	path = submodules/flatbuffers
+	url = https://github.com/google/flatbuffers.git

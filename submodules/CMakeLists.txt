@@ -12,3 +12,5 @@ add_subdirectory(fmt)
 add_subdirectory(fast_float)
 
 add_subdirectory(simdjson)
+
+add_subdirectory(flatbuffers ${CMAKE_BINARY_DIR}/flatbuffers-build EXCLUDE_FROM_ALL)
