@@ -21,7 +21,7 @@ struct NativeTuple {
     float load_avg_1;
     float load_avg_5;
     float load_avg_15;
-    std::byte container_id[HASH_BYTES];  // NOLINT(cppcoreguidelines-avoid-c-arrays)
+    std::array<std::byte, HASH_BYTES> container_id;  // NOLINT(cppcoreguidelines-avoid-c-arrays)
     // std::string command_line;
 
     void set_container_id_from_hex_string(const char* str, size_t /*length*/) {
@@ -97,7 +97,7 @@ void fill_memory(std::atomic<std::byte*>* memory_ptr,
         tup.load_avg_5 = load_distribution(gen);
         tup.load_avg_15 = load_distribution(gen);
         static_assert(HASH_BYTES % 8 == 0);
-        std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id),
+        std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
                         sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, gen);
 
         buf.clear();
