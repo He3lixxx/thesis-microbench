@@ -16,6 +16,8 @@ void serialize_csv(const NativeTuple& tup, fmt::memory_buffer* buf) {
 size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto str_len = strlen(str_ptr);
+
+#if __cpp_lib_to_chars >= 201611
     const auto* const str_end = str_ptr + str_len;
 
     auto result = std::from_chars(str_ptr, str_end, tup->id);
@@ -25,6 +27,9 @@ size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_5);
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_15);
     tup->set_container_id_from_hex_string(result.ptr + 1, str_end - result.ptr - 1);
+#else
+#warning "std::from_chars for float not supported. parser 'csvstd' will do nothing!"
+#endif
 
     return str_len + 1;
 }
