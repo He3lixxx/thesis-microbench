@@ -41,7 +41,13 @@ template <>
 struct fmt::formatter<NativeTuple> {
     [[nodiscard]] static constexpr auto parse(const format_parse_context& ctx)
         -> decltype(ctx.begin()) {
+#if 0
         return std::find(ctx.begin(), ctx.end(), '}');
+#else
+        auto it = ctx.begin();
+        while(*it != '}') ++it;
+        return it;
+#endif
     }
 
     template <typename FormatContext>
