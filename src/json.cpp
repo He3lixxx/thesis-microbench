@@ -119,12 +119,19 @@ struct NativeTupleHandler
         }};
 
         [[nodiscard]] constexpr State get(const std::string_view& key) const noexcept {
-            const auto itr = std::find_if(begin(data), end(data),
+#if FIND_IS_CONSTEXPR
+            const auto it = std::find_if(begin(data), end(data),
                                           [&key](const auto& el) { return el.first == key; });
-            if (itr == end(data)) {
+#else
+            auto it = begin(data);
+            auto end_it = end(data);
+            while(it != end_it && it->first != key)
+                ++it;
+#endif
+            if (it == end(data)) {
                 return kInvalid;
             }
-            return itr->second;
+            return it->second;
         }
     };
 };
