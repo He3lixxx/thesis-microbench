@@ -35,6 +35,18 @@ struct NativeTuple {
             }
         }
     }
+
+    [[nodiscard]] std::byte read_all_values() {
+        return (
+            *reinterpret_cast<std::byte*>(&id)
+            ^ *reinterpret_cast<std::byte*>(&timestamp)
+            ^ *reinterpret_cast<std::byte*>(&load)
+            ^ *reinterpret_cast<std::byte*>(&load_avg_1)
+            ^ *reinterpret_cast<std::byte*>(&load_avg_5)
+            ^ *reinterpret_cast<std::byte*>(&load_avg_15)
+            ^ container_id[0]
+        );
+    }
 };
 
 template <>
@@ -137,7 +149,7 @@ void thread_func(ThreadResult* result, const std::vector<std::byte>& memory) {
     const std::byte* const end_ptr = start_ptr + memory.size();
 
     while (true) {
-        uint64_t read_assurer = 0;
+        std::byte read_assurer{0b0};
         size_t total_bytes_read = 0;
 
         for (size_t i = 0; i < RUN_SIZE; ++i) {
@@ -154,7 +166,7 @@ void thread_func(ThreadResult* result, const std::vector<std::byte>& memory) {
             if constexpr (debug_output) {
                 fmt::print("Thread read tuple {}\n", tup);
             }
-            read_assurer += tup.load_avg_5 >= 0.99;
+            read_assurer ^= tup.read_all_values();
 
             read_ptr += read_bytes;
             total_bytes_read += read_bytes;
