@@ -1,12 +1,134 @@
 #include <fmt/compile.h>
 #include <fmt/format.h>
 #include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 #include <simdjson.h>
 #include <algorithm>
 #include <cstdint>
+#include <string_view>
+#include <utility>
 
 #include "bench.hpp"
 #include "json.hpp"
+
+using namespace std::literals::string_view_literals;
+
+// adapted from
+// https://github.com/Tencent/rapidjson/blob/master/example/messagereader/messagereader.cpp
+struct NativeTupleHandler
+    : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, NativeTupleHandler> {
+    explicit NativeTupleHandler(NativeTuple* tup) : tup_(tup), state_(kExpectObjectStart) {}
+
+    bool StartObject() {
+        if (state_ != kExpectObjectStart) {
+            return false;
+        }
+        state_ = kExpectAttrNameOrObjectEnd;
+        return true;
+    }
+
+    bool Key(const char* str, rapidjson::SizeType length, bool /*copy*/) {
+        static constexpr KeyStateMap map;
+        switch (state_) {
+            case kExpectAttrNameOrObjectEnd:
+                state_ = map.get(std::string_view(str, length));
+                return state_ != kInvalid;
+            default:
+                return false;
+        }
+    }
+
+    bool Double(double value) {
+        switch (state_) {
+            case kExpectLoad:
+                tup_->load = value;
+                state_ = kExpectAttrNameOrObjectEnd;
+                return true;
+            case kExpectLoadAvg1:
+                tup_->load_avg_1 = value;
+                state_ = kExpectAttrNameOrObjectEnd;
+                return true;
+            case kExpectLoadAvg5:
+                tup_->load_avg_5 = value;
+                state_ = kExpectAttrNameOrObjectEnd;
+                return true;
+            case kExpectLoadAvg15:
+                tup_->load_avg_15 = value;
+                state_ = kExpectAttrNameOrObjectEnd;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    bool Uint64(uint64_t val) {
+        switch (state_) {
+            case kExpectId:
+                tup_->id = val;
+                state_ = kExpectAttrNameOrObjectEnd;
+                return true;
+            case kExpectTimestamp:
+                tup_->timestamp = val;
+                state_ = kExpectAttrNameOrObjectEnd;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    bool String(const Ch* str, rapidjson::SizeType length, bool /*copy*/) {
+        if (state_ != kExpectContainerId) {
+            return false;
+        }
+        tup_->set_container_id_from_hex_string(str, length);
+        state_ = kExpectAttrNameOrObjectEnd;
+        return true;
+    }
+
+    bool EndObject(rapidjson::SizeType) { return state_ == kExpectAttrNameOrObjectEnd; }
+
+    bool Default() { return false; }
+
+    NativeTuple* tup_;
+
+    enum State {
+        kExpectObjectStart,
+        kExpectAttrNameOrObjectEnd,
+        kExpectId,
+        kExpectTimestamp,
+        kExpectLoad,
+        kExpectLoadAvg1,
+        kExpectLoadAvg5,
+        kExpectLoadAvg15,
+        kExpectContainerId,
+        kInvalid,
+    };
+
+    State state_;
+
+    // https://www.youtube.com/watch?v=INn3xa4pMfg
+    struct KeyStateMap {
+        std::array<std::pair<std::string_view, State>, 7> data = {{
+            {"id"sv, kExpectId},
+            {"timestamp"sv, kExpectTimestamp},
+            {"load"sv, kExpectLoad},
+            {"load_avg_1"sv, kExpectLoadAvg1},
+            {"load_avg_5"sv, kExpectLoadAvg5},
+            {"load_avg_15"sv, kExpectLoadAvg15},
+            {"container_id"sv, kExpectContainerId},
+        }};
+
+        [[nodiscard]] constexpr State get(const std::string_view& key) const noexcept {
+            const auto itr = std::find_if(begin(data), end(data),
+                                          [&key](const auto& el) { return el.first == key; });
+            if (itr == end(data)) {
+                return kInvalid;
+            }
+            return itr->second;
+        }
+    };
+};
+
 
 void serialize_json(const NativeTuple& tup, fmt::memory_buffer* buf) {
     // TODO: What happens if the tuples have different layout? Does any kind of prediction get
@@ -61,6 +183,24 @@ size_t parse_rapidjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup)
     return tuple_bytes;
 }
 
+size_t parse_rapidjson_sax(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+    const auto tuple_bytes = std::strlen(reinterpret_cast<const char*>(read_ptr)) + 1;
+
+    rapidjson::Reader reader;
+    NativeTupleHandler handler{tup};
+    rapidjson::StringStream ss(reinterpret_cast<const char*>(read_ptr));
+    reader.Parse(ss, handler);
+    // TODO: Error handling here and for other handlers (real system would need that, too?)
+    // if(!reader.Parse(ss, handler)){
+    //     rapidjson::ParseErrorCode e = reader.GetParseErrorCode();
+    //     size_t o = reader.GetErrorOffset();
+    //     fmt::print("Error: {}\n", rapidjson::GetParseError_En(e));
+    //     fmt::print("At offset {} near {}...\n", o, std::string_view(reinterpret_cast<const char*>(read_ptr)).substr(o, 10));
+    // }
+
+    return tuple_bytes;
+}
+
 size_t parse_simdjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
     static thread_local simdjson::ondemand::parser parser;
     const auto length = std::strlen(reinterpret_cast<const char*>(read_ptr));
@@ -85,4 +225,5 @@ template void fill_memory<serialize_json>(std::atomic<std::byte*>*,
                                           const std::byte* const,
                                           uint64_t*);
 template void thread_func<parse_rapidjson>(ThreadResult*, const std::vector<std::byte>&);
+template void thread_func<parse_rapidjson_sax>(ThreadResult*, const std::vector<std::byte>&);
 template void thread_func<parse_simdjson>(ThreadResult*, const std::vector<std::byte>&);

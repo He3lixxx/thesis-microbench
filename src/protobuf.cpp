@@ -4,7 +4,7 @@
 
 #include "bench.hpp"
 #include "protobuf.hpp"
-#include "tuple.pb.h"
+#include "./tuple.pb.h"
 
 IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, fmt::memory_buffer* buf) {
     Tuple t;

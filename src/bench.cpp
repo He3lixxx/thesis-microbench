@@ -69,6 +69,8 @@ int main(int argc, char** argv) {
     const std::map generator_parser_map{
         std::make_pair("rapidjson"s,
                        std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson>)),
+        std::make_pair("rapidjsonsax"s,
+                       std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson_sax>)),
         std::make_pair("simdjson"s,
                        std::make_tuple(fill_memory<serialize_json>, thread_func<parse_simdjson>)),
         std::make_pair("native"s,
