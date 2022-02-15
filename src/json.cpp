@@ -123,6 +123,7 @@ struct NativeTupleHandler
             const auto it = std::find_if(begin(data), end(data),
                                           [&key](const auto& el) { return el.first == key; });
 #else
+#warning "Using custom std::find_if implementation for rapidjson sax"
             auto it = begin(data);
             auto end_it = end(data);
             while(it != end_it && it->first != key)

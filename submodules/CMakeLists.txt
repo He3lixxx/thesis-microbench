@@ -14,3 +14,6 @@ add_subdirectory(fast_float)
 add_subdirectory(simdjson)
 
 add_subdirectory(flatbuffers ${CMAKE_BINARY_DIR}/flatbuffers-build EXCLUDE_FROM_ALL)
+
+add_library(fast-cpp-csv-parser INTERFACE)
+target_include_directories(fast-cpp-csv-parser INTERFACE fast-cpp-csv-parser/)

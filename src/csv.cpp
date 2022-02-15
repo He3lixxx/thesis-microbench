@@ -3,6 +3,7 @@
 #include <fmt/format.h>
 #include <algorithm>
 #include <cstdint>
+#include <csv.h>
 
 #include "bench.hpp"
 #include "csv.hpp"
@@ -52,8 +53,22 @@ size_t parse_csv_fast_float(const std::byte* __restrict__ read_ptr, NativeTuple*
     return str_len + 1;
 }
 
+size_t parse_csv_benstrasser(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+    const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
+    const auto str_len = strlen(str_ptr);
+    const auto* const str_end = str_ptr + str_len;
+
+    io::CSVReader<7> in("filename.csv", str_ptr, str_end);
+    char* container_id;
+    in.read_row(tup->id, tup->timestamp, tup->load, tup->load_avg_1, tup->load_avg_5, tup->load_avg_15, container_id);
+    tup->set_container_id_from_hex_string(container_id, str_end - container_id);
+
+    return str_len + 1;
+}
+
 template void fill_memory<serialize_csv>(std::atomic<std::byte*>*,
                                          const std::byte* const,
                                          uint64_t*);
 template void thread_func<parse_csv_fast_float>(ThreadResult*, const std::vector<std::byte>&);
 template void thread_func<parse_csv_std>(ThreadResult*, const std::vector<std::byte>&);
+template void thread_func<parse_csv_benstrasser>(ThreadResult*, const std::vector<std::byte>&);

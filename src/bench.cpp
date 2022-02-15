@@ -83,6 +83,8 @@ int main(int argc, char** argv) {
                        std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_std>)),
         std::make_pair("csvfastfloat"s, std::make_tuple(fill_memory<serialize_csv>,
                                                         thread_func<parse_csv_fast_float>)),
+        std::make_pair("csvbenstrasser"s, std::make_tuple(fill_memory<serialize_csv>,
+                                                        thread_func<parse_csv_benstrasser>)),
     };
 
     const auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
