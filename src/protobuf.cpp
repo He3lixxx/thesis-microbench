@@ -32,7 +32,10 @@ IMPL_VISIBILITY size_t parse_protobuf(const std::byte* __restrict__ read_ptr, Na
     read_ptr += sizeof(size);
 
     Tuple t;
-    t.ParseFromArray(read_ptr, size);
+    if (!t.ParseFromArray(read_ptr, size)) {
+        throw std::runtime_error("Invalid input data");
+    }
+
     tup->id = t.id();
     tup->timestamp = t.timestamp();
     tup->load = t.load();

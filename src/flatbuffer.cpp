@@ -29,6 +29,11 @@ IMPL_VISIBILITY size_t parse_flatbuffer(const std::byte* __restrict__ read_ptr, 
     std::copy_n(read_ptr, sizeof(size), reinterpret_cast<std::byte*>(&size));
     read_ptr += sizeof(size);
 
+    auto verifyer = flatbuffers::Verifier(reinterpret_cast<const uint8_t*>(read_ptr), size);
+    if (!VerifyTupleBuffer(verifyer)) {
+        throw std::runtime_error("Invalid input data");
+    }
+
     const auto* t = GetTuple(read_ptr);
     tup->id = t->id();
     tup->timestamp = t->timestamp();
