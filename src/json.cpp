@@ -229,9 +229,9 @@ size_t parse_simdjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup) 
     return length + 1;
 }
 
-template void fill_memory<serialize_json>(std::atomic<std::byte*>*,
-                                          const std::byte* const,
-                                          uint64_t*);
-template void thread_func<parse_rapidjson>(ThreadResult*, const std::vector<std::byte>&);
-template void thread_func<parse_rapidjson_sax>(ThreadResult*, const std::vector<std::byte>&);
-template void thread_func<parse_simdjson>(ThreadResult*, const std::vector<std::byte>&);
+// template void fill_memory<serialize_json>(std::atomic<std::byte*>*,
+//                                           const std::byte* const,
+//                                           uint64_t*);
+// template void thread_func<parse_rapidjson>(ThreadResult*, const std::vector<std::byte>&);
+// template void thread_func<parse_rapidjson_sax>(ThreadResult*, const std::vector<std::byte>&);
+// template void thread_func<parse_simdjson>(ThreadResult*, const std::vector<std::byte>&);

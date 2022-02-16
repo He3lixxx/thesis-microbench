@@ -14,6 +14,8 @@
 // should be multiple of 8
 constexpr size_t HASH_BYTES = 32;  // 256bit = 32 byte
 
+using tuple_size_t = uint_fast16_t;
+
 struct NativeTuple {
     uint64_t id;
     uint64_t timestamp;
@@ -89,7 +91,7 @@ struct ThreadResult {
     alignas(cacheline_size) std::atomic<size_t> bytes_read = 0;
 };
 
-using SerializerFunc = void (*)(const NativeTuple&, fmt::memory_buffer*);
+using SerializerFunc = void (*)(const NativeTuple&, std::vector<std::byte>*);
 template <SerializerFunc serialize>
 void fill_memory(std::atomic<std::byte*>* memory_ptr,
                  const std::byte* const memory_end,
@@ -100,7 +102,7 @@ void fill_memory(std::atomic<std::byte*>* memory_ptr,
 
     *tuple_count = 0;
 
-    fmt::memory_buffer buf;
+    std::vector<std::byte> buf;
     buf.reserve(512);
 
     while (true) {
@@ -121,25 +123,26 @@ void fill_memory(std::atomic<std::byte*>* memory_ptr,
             fmt::print("Serialized {}\n", tup);
         }
 
-
-        auto buf_size = static_cast<std::ptrdiff_t>(buf.size());
-        std::byte* const write_to = memory_ptr->fetch_add(buf_size);
+        const tuple_size_t buf_size = buf.size();
+        const auto write_size = buf_size + sizeof(buf_size);
+        std::byte* const write_to = memory_ptr->fetch_add(write_size);
         if (write_to > memory_end) {
             break;
         }
-        if (memory_end - write_to < buf_size) {
+        if (memory_end - write_to < static_cast<int32_t>(write_size)) {
             memory_ptr->store(write_to);
             break;
         }
 
-        std::copy_n(buf.data(), buf.size(), reinterpret_cast<unsigned char*>(write_to));
+        std::copy_n(reinterpret_cast<const std::byte*>(&buf_size), sizeof(buf_size), write_to);
+        std::copy_n(buf.data(), buf.size(), write_to + sizeof(buf_size));
         (*tuple_count)++;
     }
 }
 
 constexpr size_t RUN_SIZE = 1024ULL * 16;
 
-using ParseFunc = size_t (*)(const std::byte*, NativeTuple*);
+using ParseFunc = bool (*)(const std::byte*, tuple_size_t, NativeTuple*);
 template <ParseFunc parse>
 void thread_func(ThreadResult* result, const std::vector<std::byte>& memory) {
     const std::byte* const start_ptr = memory.data();
@@ -158,16 +161,22 @@ void thread_func(ThreadResult* result, const std::vector<std::byte>& memory) {
                 read_ptr = start_ptr;
             }
 
+            // const tuple_size_t tup_size = sizeof(NativeTuple);
+            const tuple_size_t tup_size = *reinterpret_cast<const tuple_size_t*>(read_ptr);
+            read_ptr += sizeof(tup_size);
+
             NativeTuple tup{};
-            const auto read_bytes = parse(read_ptr, &tup);
+            if(!parse(read_ptr, tup_size, &tup)) {
+                fmt::print("Invalid input tuple dropped.\n");
+            }
+
+            read_ptr += tup_size;
+            total_bytes_read += tup_size;
 
             if constexpr (debug_output) {
                 fmt::print("Thread read tuple {}\n", tup);
             }
             read_assurer ^= tup.read_all_values();
-
-            read_ptr += read_bytes;
-            total_bytes_read += read_bytes;
         }
 
         DoNotOptimize(read_assurer);

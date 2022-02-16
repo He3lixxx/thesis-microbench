@@ -2,9 +2,9 @@
 #include <array>
 #include <cstdint>
 
+#include "./tuple.pb.h"
 #include "bench.hpp"
 #include "protobuf.hpp"
-#include "./tuple.pb.h"
 
 IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, fmt::memory_buffer* buf) {
     Tuple t;
@@ -14,7 +14,8 @@ IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, fmt::memory_buff
     t.set_load_avg_1(tup.load);
     t.set_load_avg_5(tup.load);
     t.set_load_avg_15(tup.load);
-    t.set_container_id(reinterpret_cast<const char*>(tup.container_id.data()), tup.container_id.size());
+    t.set_container_id(reinterpret_cast<const char*>(tup.container_id.data()),
+                       tup.container_id.size());
 
     const size_t write_size = t.ByteSizeLong();
     const size_t write_index = buf->size();
@@ -42,12 +43,13 @@ IMPL_VISIBILITY size_t parse_protobuf(const std::byte* __restrict__ read_ptr, Na
     tup->load = t.load_avg_1();
     tup->load = t.load_avg_5();
     tup->load = t.load_avg_15();
-    std::copy_n(t.container_id().data(), HASH_BYTES, reinterpret_cast<char*>(tup->container_id.data()));
+    std::copy_n(t.container_id().data(), HASH_BYTES,
+                reinterpret_cast<char*>(tup->container_id.data()));
 
     return size + sizeof(size);
 }
 
-template void fill_memory<serialize_protobuf>(std::atomic<std::byte*>*,
-                                                const std::byte* const,
-                                                uint64_t*);
-template void thread_func<parse_protobuf>(ThreadResult*, const std::vector<std::byte>&);
+// template void fill_memory<serialize_protobuf>(std::atomic<std::byte*>*,
+//                                               const std::byte* const,
+//                                               uint64_t*);
+// template void thread_func<parse_protobuf>(ThreadResult*, const std::vector<std::byte>&);

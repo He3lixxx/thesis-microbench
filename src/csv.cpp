@@ -66,9 +66,9 @@ size_t parse_csv_benstrasser(const std::byte* __restrict__ read_ptr, NativeTuple
     return str_len + 1;
 }
 
-template void fill_memory<serialize_csv>(std::atomic<std::byte*>*,
-                                         const std::byte* const,
-                                         uint64_t*);
-template void thread_func<parse_csv_fast_float>(ThreadResult*, const std::vector<std::byte>&);
-template void thread_func<parse_csv_std>(ThreadResult*, const std::vector<std::byte>&);
-template void thread_func<parse_csv_benstrasser>(ThreadResult*, const std::vector<std::byte>&);
+// template void fill_memory<serialize_csv>(std::atomic<std::byte*>*,
+//                                          const std::byte* const,
+//                                          uint64_t*);
+// template void thread_func<parse_csv_fast_float>(ThreadResult*, const std::vector<std::byte>&);
+// template void thread_func<parse_csv_std>(ThreadResult*, const std::vector<std::byte>&);
+// template void thread_func<parse_csv_benstrasser>(ThreadResult*, const std::vector<std::byte>&);

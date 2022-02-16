@@ -11,8 +11,8 @@ IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, fmt::memory_bu
     auto hash_bytes_span = flatbuffers::make_span(
         reinterpret_cast<const std::array<uint8_t, HASH_BYTES>&>(tup.container_id));
     auto h = Hash(hash_bytes_span);
-    auto tuple_offset = CreateTuple(builder, tup.id, tup.timestamp, tup.load, tup.load_avg_1, tup.load_avg_5,
-                tup.load_avg_15, &h);
+    auto tuple_offset = CreateTuple(builder, tup.id, tup.timestamp, tup.load, tup.load_avg_1,
+                                    tup.load_avg_5, tup.load_avg_15, &h);
     builder.Finish(tuple_offset);
 
     const size_t size = builder.GetSize();
@@ -47,7 +47,7 @@ IMPL_VISIBILITY size_t parse_flatbuffer(const std::byte* __restrict__ read_ptr, 
     return size + sizeof(size);
 }
 
-template void fill_memory<serialize_flatbuffer>(std::atomic<std::byte*>*,
-                                                const std::byte* const,
-                                                uint64_t*);
-template void thread_func<parse_flatbuffer>(ThreadResult*, const std::vector<std::byte>&);
+// template void fill_memory<serialize_flatbuffer>(std::atomic<std::byte*>*,
+//                                                 const std::byte* const,
+//                                                 uint64_t*);
+// template void thread_func<parse_flatbuffer>(ThreadResult*, const std::vector<std::byte>&);
