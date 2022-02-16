@@ -69,25 +69,25 @@ int main(int argc, char** argv) {
     const std::map generator_parser_map{
         std::make_pair("native"s, std::make_tuple(generate_tuples<serialize_native>,
                                                   parse_tuples<parse_native>)),
-        // std::make_pair("rapidjson"s,
-        //                std::make_tuple(fill_memory<serialize_json>,
-        //                thread_func<parse_rapidjson>)),
-        // std::make_pair("rapidjsonsax"s,
-        //                std::make_tuple(fill_memory<serialize_json>,
-        //                thread_func<parse_rapidjson_sax>)),
-        // std::make_pair("simdjson"s,
-        //                std::make_tuple(fill_memory<serialize_json>,
-        //                thread_func<parse_simdjson>)),
-        // std::make_pair("flatbuf"s, std::make_tuple(fill_memory<serialize_flatbuffer>,
-        //                                            thread_func<parse_flatbuffer>)),
-        // std::make_pair("protobuf"s, std::make_tuple(fill_memory<serialize_protobuf>,
-        //                                            thread_func<parse_protobuf>)),
-        // std::make_pair("csvstd"s,
-        //                std::make_tuple(fill_memory<serialize_csv>, thread_func<parse_csv_std>)),
-        // std::make_pair("csvfastfloat"s, std::make_tuple(fill_memory<serialize_csv>,
-        //                                                 thread_func<parse_csv_fast_float>)),
-        // std::make_pair("csvbenstrasser"s, std::make_tuple(fill_memory<serialize_csv>,
-        //                                                 thread_func<parse_csv_benstrasser>)),
+        std::make_pair("rapidjson"s,
+                       std::make_tuple(generate_tuples<serialize_json>,
+                       parse_tuples<parse_rapidjson>)),
+        std::make_pair("rapidjsonsax"s,
+                       std::make_tuple(generate_tuples<serialize_json>,
+                       parse_tuples<parse_rapidjson_sax>)),
+        std::make_pair("simdjson"s,
+                       std::make_tuple(generate_tuples<serialize_json>,
+                       parse_tuples<parse_simdjson>)),
+        std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>,
+                                                   parse_tuples<parse_flatbuffer>)),
+        std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>,
+                                                   parse_tuples<parse_protobuf>)),
+        std::make_pair("csvstd"s,
+                       std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_std>)),
+        std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>,
+                                                        parse_tuples<parse_csv_fast_float>)),
+        std::make_pair("csvbenstrasser"s, std::make_tuple(generate_tuples<serialize_csv>,
+                                                        parse_tuples<parse_csv_benstrasser>)),
     };
 
     const auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
@@ -127,6 +127,8 @@ int main(int argc, char** argv) {
             std::chrono::high_resolution_clock::now() - timestamp;
         fmt::print("Generated {} tuples ({} B) in {}s.\n", tuple_sizes.size(), memory.size(),
                    elapsed_seconds.count());
+        // fmt::print("Memory contents:\n{}\n", (char*)(memory.data()));
+        // fmt::print("Tuple sizes: {}\n", fmt::join(tuple_sizes, ", "));
     }
 
     /*

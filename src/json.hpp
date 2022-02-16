@@ -5,14 +5,13 @@
 #include <vector>
 #include "bench.hpp"
 
-// IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, fmt::memory_buffer* buf);
-// IMPL_VISIBILITY size_t parse_rapidjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup);
-// IMPL_VISIBILITY size_t parse_rapidjson_sax(const std::byte* __restrict__ read_ptr, NativeTuple* tup);
-// IMPL_VISIBILITY size_t parse_simdjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup);
+// clang-format off
+IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf);
+IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup);
+IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup);
+IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup);
 
-// extern template void fill_memory<serialize_json>(std::atomic<std::byte*>*,
-//                                                  const std::byte* const,
-//                                                  uint64_t*);
-// extern template void thread_func<parse_rapidjson_sax>(ThreadResult*, const std::vector<std::byte>&);
-// extern template void thread_func<parse_rapidjson>(ThreadResult*, const std::vector<std::byte>&);
-// extern template void thread_func<parse_simdjson>(ThreadResult*, const std::vector<std::byte>&);
+extern template void generate_tuples<serialize_json>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
+extern template void parse_tuples<parse_rapidjson>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+extern template void parse_tuples<parse_rapidjson_sax>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+extern template void parse_tuples<parse_simdjson>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);

@@ -8,18 +8,25 @@
 #include "bench.hpp"
 #include "csv.hpp"
 
-void serialize_csv(const NativeTuple& tup, fmt::memory_buffer* buf) {
-    fmt::format_to(std::back_inserter(*buf), FMT_COMPILE("{},{},{:f},{:f},{:f},{:f},{:02x}\0"),
+
+IMPL_VISIBILITY void serialize_csv(const NativeTuple& tup, std::vector<std::byte>* buf) {
+    thread_local auto local_buffer = fmt::memory_buffer();
+    local_buffer.clear();
+
+    fmt::format_to(std::back_inserter(local_buffer), FMT_COMPILE("{},{},{:f},{:f},{:f},{:f},{:02x}\0"),
                    tup.id, tup.timestamp, tup.load, tup.load_avg_1, tup.load_avg_5, tup.load_avg_15,
                    fmt::join(tup.container_id, ""));
+
+    const auto old_size = buf->size();
+    buf->resize(old_size + local_buffer.size());
+    std::copy(begin(local_buffer), end(local_buffer), reinterpret_cast<char*>(buf->data() + old_size));
 }
 
-size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_csv_std(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
+    // TODO: Input validation
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
-    const auto str_len = strlen(str_ptr);
-
 #if __cpp_lib_to_chars >= 201611
-    const auto* const str_end = str_ptr + str_len;
+    const auto* const str_end = str_ptr + tup_size;
 
     auto result = std::from_chars(str_ptr, str_end, tup->id);
     result = std::from_chars(result.ptr + 1, str_end, tup->timestamp);
@@ -32,13 +39,13 @@ size_t parse_csv_std(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
 #warning "std::from_chars for float not supported. parser 'csvstd' will do nothing!"
 #endif
 
-    return str_len + 1;
+    return true;
 }
 
-size_t parse_csv_fast_float(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_csv_fast_float(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
+    // TODO: Input validation
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
-    const auto str_len = strlen(str_ptr);
-    const auto* const str_end = str_ptr + str_len;
+    const auto* const str_end = str_ptr + tup_size;
 
     const auto* result_ptr = parse_uint_str(str_ptr, &tup->id);
     result_ptr = parse_uint_str(result_ptr + 1, &tup->timestamp);
@@ -50,25 +57,24 @@ size_t parse_csv_fast_float(const std::byte* __restrict__ read_ptr, NativeTuple*
 
     tup->set_container_id_from_hex_string(result_ptr + 1, str_end - result_ptr - 1);
 
-    return str_len + 1;
+    return true;
 }
 
-size_t parse_csv_benstrasser(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
+    // TODO: Input validation
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
-    const auto str_len = strlen(str_ptr);
-    const auto* const str_end = str_ptr + str_len;
+    const auto* const str_end = str_ptr + tup_size;
 
     io::CSVReader<7> in("filename.csv", str_ptr, str_end);
     char* container_id;
     in.read_row(tup->id, tup->timestamp, tup->load, tup->load_avg_1, tup->load_avg_5, tup->load_avg_15, container_id);
     tup->set_container_id_from_hex_string(container_id, str_end - container_id);
 
-    return str_len + 1;
+    return true;
 }
 
-// template void fill_memory<serialize_csv>(std::atomic<std::byte*>*,
-//                                          const std::byte* const,
-//                                          uint64_t*);
-// template void thread_func<parse_csv_fast_float>(ThreadResult*, const std::vector<std::byte>&);
-// template void thread_func<parse_csv_std>(ThreadResult*, const std::vector<std::byte>&);
-// template void thread_func<parse_csv_benstrasser>(ThreadResult*, const std::vector<std::byte>&);
+// clang-format off
+template void generate_tuples<serialize_csv>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
+template void parse_tuples<parse_csv_fast_float>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+template void parse_tuples<parse_csv_std>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+template void parse_tuples<parse_csv_benstrasser>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);

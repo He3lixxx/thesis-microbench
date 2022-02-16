@@ -138,11 +138,15 @@ struct NativeTupleHandler
 };
 
 
-void serialize_json(const NativeTuple& tup, fmt::memory_buffer* buf) {
+IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf) {
     // TODO: What happens if the tuples have different layout? Does any kind of prediction get
     // worse?
+
+    thread_local fmt::memory_buffer local_buffer;
+    local_buffer.clear();
+
     // clang-format off
-    fmt::format_to(std::back_inserter(*buf), FMT_COMPILE(R"({{
+    fmt::format_to(std::back_inserter(local_buffer), FMT_COMPILE(R"({{
 "id": {},
 "timestamp": {},
 "load": {:f},
@@ -162,20 +166,28 @@ void serialize_json(const NativeTuple& tup, fmt::memory_buffer* buf) {
     );
     // clang-format on
 
-    buf->push_back('\0');
+    local_buffer.push_back('\0');
+
+    const auto old_size = buf->size();
+    buf->resize(old_size + local_buffer.size());
+    std::copy(begin(local_buffer), end(local_buffer), reinterpret_cast<char*>(buf->data() + old_size));
 }
 
-size_t parse_rapidjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
     // TODO: Would make sense to re-use this, but that will leak memory(?)
     rapidjson::Document d;
+
+    if(read_ptr[tup_size - 1] != std::byte{0b0}) {
+        return false;
+    }
 
     // TODO: Insitu-Parsing?
     d.Parse(reinterpret_cast<const char*>(read_ptr));
 
-    if (!d["id"].IsUint64() || !d["timestamp"].IsUint64() || !d["load"].IsFloat() ||
+    if (d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() || !d["load"].IsFloat() ||
         !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() || !d["load_avg_15"].IsFloat() ||
         !d["container_id"].IsString()) {
-        throw std::runtime_error("Invalid input tuple");
+        return false;
     }
 
     tup->id = d["id"].GetUint64();
@@ -187,34 +199,38 @@ size_t parse_rapidjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup)
     tup->set_container_id_from_hex_string(d["container_id"].GetString(),
                                           d["container_id"].GetStringLength());
 
-    const auto tuple_bytes = std::strlen(reinterpret_cast<const char*>(read_ptr)) + 1;
-    return tuple_bytes;
+    return true;
 }
 
-size_t parse_rapidjson_sax(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
-    const auto tuple_bytes = std::strlen(reinterpret_cast<const char*>(read_ptr)) + 1;
-
+IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
     rapidjson::Reader reader;
     NativeTupleHandler handler{tup};
-    rapidjson::StringStream ss(reinterpret_cast<const char*>(read_ptr));
-    reader.Parse(ss, handler);
-    // TODO: Error handling here and for other handlers (real system would need that, too?)
-    // if(!reader.Parse(ss, handler)){
-    //     rapidjson::ParseErrorCode e = reader.GetParseErrorCode();
-    //     size_t o = reader.GetErrorOffset();
-    //     fmt::print("Error: {}\n", rapidjson::GetParseError_En(e));
-    //     fmt::print("At offset {} near {}...\n", o, std::string_view(reinterpret_cast<const char*>(read_ptr)).substr(o, 10));
-    // }
 
-    return tuple_bytes;
+    if(read_ptr[tup_size - 1] != std::byte{0b0}) {
+        return false;
+    }
+    rapidjson::StringStream ss(reinterpret_cast<const char*>(read_ptr));
+
+    if(!reader.Parse(ss, handler)){
+        return false;
+    }
+
+    return true;
 }
 
-size_t parse_simdjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
     static thread_local simdjson::ondemand::parser parser;
-    const auto length = std::strlen(reinterpret_cast<const char*>(read_ptr));
 
-    const simdjson::padded_string s(reinterpret_cast<const char*>(read_ptr), length);
-    simdjson::ondemand::document d = parser.iterate(s);
+    if(read_ptr[tup_size - 1] != std::byte{0b0}) {
+        return false;
+    }
+    // TODO: Padding als gegeben ansehen?
+    const simdjson::padded_string s(reinterpret_cast<const char*>(read_ptr), tup_size - 2);
+    simdjson::ondemand::document d;
+    auto error = parser.iterate(s).get(d);
+    if(error) {
+        return false;
+    }
 
     tup->id = d["id"].get_uint64();
     tup->timestamp = d["timestamp"].get_uint64();
@@ -226,12 +242,11 @@ size_t parse_simdjson(const std::byte* __restrict__ read_ptr, NativeTuple* tup) 
     const std::string_view container_id_view = d["container_id"].get_string();
     tup->set_container_id_from_hex_string(container_id_view.data(), container_id_view.length());
 
-    return length + 1;
+    return true;
 }
 
-// template void fill_memory<serialize_json>(std::atomic<std::byte*>*,
-//                                           const std::byte* const,
-//                                           uint64_t*);
-// template void thread_func<parse_rapidjson>(ThreadResult*, const std::vector<std::byte>&);
-// template void thread_func<parse_rapidjson_sax>(ThreadResult*, const std::vector<std::byte>&);
-// template void thread_func<parse_simdjson>(ThreadResult*, const std::vector<std::byte>&);
+// clang-format off
+template void generate_tuples<serialize_json>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
+template void parse_tuples<parse_rapidjson>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+template void parse_tuples<parse_rapidjson_sax>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+template void parse_tuples<parse_simdjson>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);

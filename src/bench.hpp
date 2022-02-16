@@ -144,7 +144,7 @@ void generate_tuples(std::vector<std::byte>* memory,
                 std::copy(begin(local_tuple_sizes), end(local_tuple_sizes),
                           begin(*tuple_sizes) + old_tuple_sizes_size);
             } else {
-                auto read_it = local_buffer.begin();
+                auto read_it = begin(local_buffer);
                 for (const auto& tup_size : local_tuple_sizes) {
                     if (memory->size() + tup_size > target_memory_size) {
                         return;
@@ -187,7 +187,7 @@ void parse_tuples(ThreadResult* result,
 
             NativeTuple tup{};
             if (!parse(read_ptr, tup_size, &tup)) {
-                fmt::print("Invalid input tuple dropped.\n");
+                throw std::runtime_error("Invalid input tuple dropped");
             }
 
             read_ptr += tup_size;
