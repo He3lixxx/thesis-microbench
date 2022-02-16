@@ -230,8 +230,7 @@ IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr,
     if (read_ptr[tup_size - 1] != std::byte{0b0}) {
         return false;
     }
-    // TODO: Padding als gegeben ansehen?
-    const simdjson::padded_string s(reinterpret_cast<const char*>(read_ptr), tup_size - 2);
+    const simdjson::padded_string_view s(reinterpret_cast<const char*>(read_ptr), tup_size - 2, tup_size + simdjson::SIMDJSON_PADDING);
     simdjson::ondemand::document d;
     auto error = parser.iterate(s).get(d);
     if (error != 0U) {

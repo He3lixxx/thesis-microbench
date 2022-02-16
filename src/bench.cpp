@@ -1,5 +1,6 @@
 #include <fmt/core.h>
 #include <cxxopts.hpp>
+#include <simdjson.h>
 
 #include <atomic>
 #include <chrono>
@@ -101,7 +102,7 @@ int main(int argc, char** argv) {
      */
     std::vector<std::byte> memory;
     std::vector<tuple_size_t> tuple_sizes;
-    memory.reserve(memory_bytes);
+    memory.reserve(memory_bytes + simdjson::SIMDJSON_PADDING);
     tuple_sizes.reserve(memory_bytes / 64);
 
     {
