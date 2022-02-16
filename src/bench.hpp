@@ -9,6 +9,7 @@
 #include <random>
 #include <thread>
 #include <vector>
+#include <execution>
 
 #include "constants.hpp"
 #include "parse.hpp"
@@ -26,18 +27,35 @@ struct NativeTuple {
     float load_avg_5;
     float load_avg_15;
     std::array<std::byte, HASH_BYTES> container_id;
-    // std::string command_line;
 
-    void set_container_id_from_hex_string(const char* str, size_t /*length*/) {
-        for (size_t i = 0; i < HASH_BYTES; ++i) {
-            if constexpr (use_std_from_chars) {
-                std::from_chars(str + 2 * i, str + 2 * i + 2,
-                                reinterpret_cast<unsigned char&>(container_id[i]), 16);
-            } else {
+    [[nodiscard]] std::from_chars_result set_container_id_from_hex_string(const char* str,
+                                                                          const char* str_end) {
+        if (__builtin_expect((str_end - str) < static_cast<ptrdiff_t>(2 * HASH_BYTES), 0)) {
+            return {nullptr, std::errc::invalid_argument};
+        }
+
+        if constexpr (use_std_from_chars) {
+            for (size_t i = 0; i < HASH_BYTES; ++i) {
+                auto result =
+                    std::from_chars(str + 2 * i, str + 2 * i + 2,
+                                    reinterpret_cast<unsigned char&>(container_id[i]), 16);
+                if (result.ec == std::errc()) {
+                    return result;
+                }
+            }
+        } else {
+            if (__builtin_expect(std::any_of(std::execution::unseq, str, str + 2 * HASH_BYTES,
+                                             [](const char c) { return !is_hex_char(c); }),
+                                 0)) {
+                return {nullptr, std::errc::invalid_argument};
+            }
+
+            for (size_t i = 0; i < HASH_BYTES; ++i) {
                 reinterpret_cast<unsigned char&>(container_id[i]) =
-                    parse_hex_char(*(str + 2 * i)) * 16 + parse_hex_char(*(str + 2 * i + 1));
+                    parse_hex_char(str[2 * i]) * 16 + parse_hex_char(str[2 * i + 1]);
             }
         }
+        return {str + 2 * HASH_BYTES, std::errc()};
     }
 
     [[nodiscard]] std::byte read_all_values() {
@@ -53,10 +71,11 @@ struct fmt::formatter<NativeTuple> {
     [[nodiscard]] static constexpr auto parse(const format_parse_context& ctx)
         -> decltype(ctx.begin()) {
         // std::find is not constexpr for some old compiler on lab machines.
-        auto it = ctx.begin();
-        auto end_it = ctx.end();
-        while (it != end_it && *it != '}')
+        const auto* it = ctx.begin();
+        const auto* end_it = ctx.end();
+        while (it != end_it && *it != '}') {
             ++it;
+        }
         return it;
     }
 
@@ -122,9 +141,9 @@ void generate_tuples(std::vector<std::byte>* memory,
             std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
                             sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, gen);
 
-            size_t old_size = local_buffer.size();
+            auto old_size = static_cast<int64_t>(local_buffer.size());
             serialize(tup, &local_buffer);
-            size_t tup_size = local_buffer.size() - old_size;
+            tuple_size_t tup_size = local_buffer.size() - old_size;
             local_tuple_sizes.push_back(tup_size);
 
             if constexpr (debug_output) {
@@ -135,8 +154,8 @@ void generate_tuples(std::vector<std::byte>* memory,
         {
             std::scoped_lock lock(*mutex);
             if (memory->size() + local_buffer.size() <= target_memory_size) {
-                auto old_memory_size = memory->size();
-                auto old_tuple_sizes_size = tuple_sizes->size();
+                auto old_memory_size = static_cast<int64_t>(memory->size());
+                auto old_tuple_sizes_size = static_cast<int64_t>(tuple_sizes->size());
                 memory->resize(old_memory_size + local_buffer.size());
                 tuple_sizes->resize(old_tuple_sizes_size + local_tuple_sizes.size());
 
@@ -151,7 +170,7 @@ void generate_tuples(std::vector<std::byte>* memory,
                     }
                     std::copy_n(read_it, tup_size, std::back_inserter(*memory));
                     tuple_sizes->push_back(tup_size);
-                    read_it += tup_size;
+                    read_it += static_cast<int64_t>(tup_size);
                 }
             }
         }

@@ -41,19 +41,19 @@ struct NativeTupleHandler
     bool Double(double value) {
         switch (state_) {
             case kExpectLoad:
-                tup_->load = value;
+                tup_->load = static_cast<float>(value);
                 state_ = kExpectAttrNameOrObjectEnd;
                 return true;
             case kExpectLoadAvg1:
-                tup_->load_avg_1 = value;
+                tup_->load_avg_1 = static_cast<float>(value);
                 state_ = kExpectAttrNameOrObjectEnd;
                 return true;
             case kExpectLoadAvg5:
-                tup_->load_avg_5 = value;
+                tup_->load_avg_5 = static_cast<float>(value);
                 state_ = kExpectAttrNameOrObjectEnd;
                 return true;
             case kExpectLoadAvg15:
-                tup_->load_avg_15 = value;
+                tup_->load_avg_15 = static_cast<float>(value);
                 state_ = kExpectAttrNameOrObjectEnd;
                 return true;
             default:
@@ -80,14 +80,16 @@ struct NativeTupleHandler
         if (state_ != kExpectContainerId) {
             return false;
         }
-        tup_->set_container_id_from_hex_string(str, length);
         state_ = kExpectAttrNameOrObjectEnd;
-        return true;
+        auto result = tup_->set_container_id_from_hex_string(str, str + length);
+        return !(result.ec != std::errc() || result.ptr != str + length);
     }
 
-    bool EndObject(rapidjson::SizeType) { return state_ == kExpectAttrNameOrObjectEnd; }
+    [[nodiscard]] bool EndObject(rapidjson::SizeType /*unused*/) const {
+        return state_ == kExpectAttrNameOrObjectEnd;
+    }
 
-    bool Default() { return false; }
+    static bool Default() { return false; }
 
     NativeTuple* tup_;
 
@@ -119,15 +121,17 @@ struct NativeTupleHandler
         }};
 
         [[nodiscard]] constexpr State get(const std::string_view& key) const noexcept {
-#if FIND_IS_CONSTEXPR
-            const auto it = std::find_if(begin(data), end(data),
-                                          [&key](const auto& el) { return el.first == key; });
+#if __cpp_lib_constexpr_algorithms >= 201806L
+
+            const auto* const it = std::find_if(begin(data), end(data),
+                                                [&key](const auto& el) { return el.first == key; });
 #else
 #warning "Using custom std::find_if implementation for rapidjson sax"
-            auto it = begin(data);
-            auto end_it = end(data);
-            while(it != end_it && it->first != key)
+            const auto* it = begin(data);
+            const auto* end_it = end(data);
+            while (it != end_it && it->first != key) {
                 ++it;
+            }
 #endif
             if (it == end(data)) {
                 return kInvalid;
@@ -136,7 +140,6 @@ struct NativeTupleHandler
         }
     };
 };
-
 
 IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf) {
     // TODO: What happens if the tuples have different layout? Does any kind of prediction get
@@ -170,23 +173,25 @@ IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byt
 
     const auto old_size = buf->size();
     buf->resize(old_size + local_buffer.size());
-    std::copy(begin(local_buffer), end(local_buffer), reinterpret_cast<char*>(buf->data() + old_size));
+    std::copy(begin(local_buffer), end(local_buffer),
+              reinterpret_cast<char*>(buf->data() + old_size));
 }
 
-IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
-    // TODO: Would make sense to re-use this, but that will leak memory(?)
+IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
+                                     tuple_size_t tup_size,
+                                     NativeTuple* tup) {
     rapidjson::Document d;
 
-    if(read_ptr[tup_size - 1] != std::byte{0b0}) {
+    if (read_ptr[tup_size - 1] != std::byte{0b0}) {
         return false;
     }
 
     // TODO: Insitu-Parsing?
     d.Parse(reinterpret_cast<const char*>(read_ptr));
 
-    if (d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() || !d["load"].IsFloat() ||
-        !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() || !d["load_avg_15"].IsFloat() ||
-        !d["container_id"].IsString()) {
+    if (d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() ||
+        !d["load"].IsFloat() || !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() ||
+        !d["load_avg_15"].IsFloat() || !d["container_id"].IsString()) {
         return false;
     }
 
@@ -196,39 +201,40 @@ IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr, tup
     tup->load_avg_1 = d["load_avg_1"].GetFloat();
     tup->load_avg_5 = d["load_avg_5"].GetFloat();
     tup->load_avg_15 = d["load_avg_15"].GetFloat();
-    tup->set_container_id_from_hex_string(d["container_id"].GetString(),
-                                          d["container_id"].GetStringLength());
 
-    return true;
+    const char* container_id_begin = d["container_id"].GetString();
+    const char* container_id_end = container_id_begin + d["container_id"].GetStringLength();
+    auto result = tup->set_container_id_from_hex_string(container_id_begin, container_id_end);
+    return !(result.ec != std::errc() || result.ptr != container_id_end);
 }
 
-IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr,
+                                         tuple_size_t tup_size,
+                                         NativeTuple* tup) {
     rapidjson::Reader reader;
     NativeTupleHandler handler{tup};
 
-    if(read_ptr[tup_size - 1] != std::byte{0b0}) {
+    if (read_ptr[tup_size - 1] != std::byte{0b0}) {
         return false;
     }
     rapidjson::StringStream ss(reinterpret_cast<const char*>(read_ptr));
 
-    if(!reader.Parse(ss, handler)){
-        return false;
-    }
-
-    return true;
+    return reader.Parse(ss, handler) != nullptr;
 }
 
-IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr,
+                                    tuple_size_t tup_size,
+                                    NativeTuple* tup) {
     static thread_local simdjson::ondemand::parser parser;
 
-    if(read_ptr[tup_size - 1] != std::byte{0b0}) {
+    if (read_ptr[tup_size - 1] != std::byte{0b0}) {
         return false;
     }
     // TODO: Padding als gegeben ansehen?
     const simdjson::padded_string s(reinterpret_cast<const char*>(read_ptr), tup_size - 2);
     simdjson::ondemand::document d;
     auto error = parser.iterate(s).get(d);
-    if(error) {
+    if (error != 0U) {
         return false;
     }
 
@@ -240,9 +246,10 @@ IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr, tupl
     tup->load_avg_15 = static_cast<float>(d["load_avg_15"].get_double());
 
     const std::string_view container_id_view = d["container_id"].get_string();
-    tup->set_container_id_from_hex_string(container_id_view.data(), container_id_view.length());
-
-    return true;
+    auto result = tup->set_container_id_from_hex_string(
+        container_id_view.data(), container_id_view.data() + container_id_view.size());
+    return !(result.ec != std::errc() ||
+             result.ptr != container_id_view.data() + container_id_view.size());
 }
 
 // clang-format off

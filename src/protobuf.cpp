@@ -6,8 +6,7 @@
 #include "bench.hpp"
 #include "protobuf.hpp"
 
-
-IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std::byte>* buf){
+IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std::byte>* buf) {
     Tuple t;
     t.set_id(tup.id);
     t.set_timestamp(tup.timestamp);
@@ -23,12 +22,14 @@ IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std:
     buf->resize(old_buffer_size + tup_size);
     auto* write_ptr = reinterpret_cast<std::byte*>(buf->data() + old_buffer_size);
 
-    t.SerializeToArray(write_ptr, tup_size);
+    t.SerializeToArray(write_ptr, static_cast<int>(tup_size));
 }
 
-IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup){
+IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
+                                    tuple_size_t tup_size,
+                                    NativeTuple* tup) {
     Tuple t;
-    if (!t.ParseFromArray(read_ptr, tup_size)) {
+    if (!t.ParseFromArray(read_ptr, static_cast<int>(tup_size))) {
         return false;
     }
 

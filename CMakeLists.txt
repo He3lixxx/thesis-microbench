@@ -22,12 +22,12 @@ else()
 endif()
 
 # Set Optimization Flags
-set(CMAKE_CXX_FLAGS_DEBUG "-Og -g -fno-omit-frame-pointer")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fno-omit-frame-pointer")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -fno-omit-frame-pointer -DNDEBUG")
 
 set(CMAKE_CXX_FLAGS_ASAN
-    "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer" CACHE STRING
+    "${CMAKE_CXX_FLAGS_DEBUG} -O3 -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer" CACHE STRING
     "Flags used by the C++ compiler for Asan build type or configuration." FORCE)
 
 set(CMAKE_EXE_LINKER_FLAGS_ASAN

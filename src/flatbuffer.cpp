@@ -17,11 +17,14 @@ IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, std::vector<st
 
     const size_t size = builder.GetSize();
     buf->reserve(buf->size() + size);
-    std::copy_n(reinterpret_cast<std::byte*>(builder.GetBufferPointer()), size, std::back_inserter(*buf));
+    std::copy_n(reinterpret_cast<std::byte*>(builder.GetBufferPointer()), size,
+                std::back_inserter(*buf));
     builder.Clear();
 }
 
-IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr, tuple_size_t tup_size, NativeTuple* tup) {
+IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
+                                      tuple_size_t tup_size,
+                                      NativeTuple* tup) {
     // TODO: This copies all elements, and doesn't use the advantage that direct attribute access is
     // possible
 

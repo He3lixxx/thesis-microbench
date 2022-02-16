@@ -1,8 +1,6 @@
 #pragma once
 #include <cstdint>
 
-#define FIND_IS_CONSTEXPR false
-
 #if 1
 constexpr uint64_t generate_chunk_size = 1024;
 constexpr bool debug_output = false;
