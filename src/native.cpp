@@ -22,7 +22,10 @@ IMPL_VISIBILITY bool parse_native(const std::byte* __restrict__ read_ptr, tuple_
     return true;
 }
 
-template void fill_memory<serialize_native>(std::atomic<std::byte*>*,
-                                            const std::byte* const,
-                                            uint64_t*);
-template void thread_func<parse_native>(ThreadResult*, const std::vector<std::byte>&);
+template void generate_tuples<serialize_native>(std::vector<std::byte>* memory,
+                     size_t target_memory_size,
+                     std::vector<tuple_size_t>* tuple_sizes,
+                     std::mutex* mutex);
+template void parse_tuples<parse_native>(ThreadResult* result,
+                  const std::vector<std::byte>& memory,
+                  const std::vector<tuple_size_t>& tuple_sizes);

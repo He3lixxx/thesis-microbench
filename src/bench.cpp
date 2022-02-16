@@ -12,9 +12,9 @@
 #include "bench.hpp"
 #include "csv.hpp"
 #include "flatbuffer.hpp"
-#include "protobuf.hpp"
 #include "json.hpp"
 #include "native.hpp"
+#include "protobuf.hpp"
 
 using std::string_literals::operator""s;
 
@@ -67,14 +67,17 @@ int main(int argc, char** argv) {
     const size_t thread_count = arguments["threads"].as<size_t>();
 
     const std::map generator_parser_map{
-        std::make_pair("native"s,
-                       std::make_tuple(fill_memory<serialize_native>, thread_func<parse_native>)),
+        std::make_pair("native"s, std::make_tuple(generate_tuples<serialize_native>,
+                                                  parse_tuples<parse_native>)),
         // std::make_pair("rapidjson"s,
-        //                std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson>)),
+        //                std::make_tuple(fill_memory<serialize_json>,
+        //                thread_func<parse_rapidjson>)),
         // std::make_pair("rapidjsonsax"s,
-        //                std::make_tuple(fill_memory<serialize_json>, thread_func<parse_rapidjson_sax>)),
+        //                std::make_tuple(fill_memory<serialize_json>,
+        //                thread_func<parse_rapidjson_sax>)),
         // std::make_pair("simdjson"s,
-        //                std::make_tuple(fill_memory<serialize_json>, thread_func<parse_simdjson>)),
+        //                std::make_tuple(fill_memory<serialize_json>,
+        //                thread_func<parse_simdjson>)),
         // std::make_pair("flatbuf"s, std::make_tuple(fill_memory<serialize_flatbuffer>,
         //                                            thread_func<parse_flatbuffer>)),
         // std::make_pair("protobuf"s, std::make_tuple(fill_memory<serialize_protobuf>,
@@ -94,48 +97,49 @@ int main(int argc, char** argv) {
         exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
 
-    const auto [generator, thread_func] = it->second;
+    const auto [generator_func, parser_func] = it->second;
 
     /*
      * Input Data Generation
      */
-    std::vector<std::thread> threads;
-    threads.reserve(thread_count);
+    std::vector<std::byte> memory;
+    std::vector<tuple_size_t> tuple_sizes;
+    memory.reserve(memory_bytes);
+    tuple_sizes.reserve(memory_bytes / 64);
 
-    std::vector<std::byte> memory(memory_bytes);
-    uint64_t tuple_count{};
     {
-        fmt::print("Generating tuples for {}B of memory.\n", memory.size());
+        fmt::print("Generating tuples for {} B of memory.\n", memory_bytes);
         const auto timestamp = std::chrono::high_resolution_clock::now();
 
-        std::atomic<std::byte*> write_ptr = &memory[0];
-        const std::byte* write_end = write_ptr + memory.size();
+        std::vector<std::thread> threads;
+        threads.reserve(thread_count);
+
+        std::mutex mutex;
 
         for (size_t i = 0; i < thread_count; ++i) {
-            threads.emplace_back(generator, &write_ptr, write_end, &tuple_count);
+            threads.emplace_back(generator_func, &memory, memory_bytes, &tuple_sizes, &mutex);
         }
         for (auto& thread : threads) {
             thread.join();
         }
-        threads.clear();
-
-        memory.resize(write_ptr.load() - &memory[0]);
-        fmt::print("Memory resized to {}B.\n", memory.size());
 
         const std::chrono::duration<double> elapsed_seconds =
             std::chrono::high_resolution_clock::now() - timestamp;
-        fmt::print("Generated {} tuples in {}s.\n", tuple_count, elapsed_seconds.count());
+        fmt::print("Generated {} tuples ({} B) in {}s.\n", tuple_sizes.size(), memory.size(),
+                   elapsed_seconds.count());
     }
 
     /*
      * Actual Benchmark
      */
 
+    std::vector<std::thread> threads;
+    threads.reserve(thread_count);
     std::vector<ThreadResult> thread_results(thread_count);
 
     auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(thread_func, &thread_results[i], memory);
+        threads.emplace_back(parser_func, &thread_results[i], memory, tuple_sizes);
     }
 
     while (true) {

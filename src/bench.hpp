@@ -5,7 +5,9 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <random>
+#include <thread>
 #include <vector>
 
 #include "constants.hpp"
@@ -39,15 +41,10 @@ struct NativeTuple {
     }
 
     [[nodiscard]] std::byte read_all_values() {
-        return (
-            *reinterpret_cast<std::byte*>(&id)
-            ^ *reinterpret_cast<std::byte*>(&timestamp)
-            ^ *reinterpret_cast<std::byte*>(&load)
-            ^ *reinterpret_cast<std::byte*>(&load_avg_1)
-            ^ *reinterpret_cast<std::byte*>(&load_avg_5)
-            ^ *reinterpret_cast<std::byte*>(&load_avg_15)
-            ^ container_id[0]
-        );
+        return (*reinterpret_cast<std::byte*>(&id) ^ *reinterpret_cast<std::byte*>(&timestamp) ^
+                *reinterpret_cast<std::byte*>(&load) ^ *reinterpret_cast<std::byte*>(&load_avg_1) ^
+                *reinterpret_cast<std::byte*>(&load_avg_5) ^
+                *reinterpret_cast<std::byte*>(&load_avg_15) ^ container_id[0]);
     }
 };
 
@@ -58,7 +55,8 @@ struct fmt::formatter<NativeTuple> {
         // std::find is not constexpr for some old compiler on lab machines.
         auto it = ctx.begin();
         auto end_it = ctx.end();
-        while(it != end_it && *it != '}') ++it;
+        while (it != end_it && *it != '}')
+            ++it;
         return it;
     }
 
@@ -93,50 +91,68 @@ struct ThreadResult {
 
 using SerializerFunc = void (*)(const NativeTuple&, std::vector<std::byte>*);
 template <SerializerFunc serialize>
-void fill_memory(std::atomic<std::byte*>* memory_ptr,
-                 const std::byte* const memory_end,
-                 uint64_t* tuple_count) {
+void generate_tuples(std::vector<std::byte>* memory,
+                     size_t target_memory_size,
+                     std::vector<tuple_size_t>* tuple_sizes,
+                     std::mutex* mutex) {
     std::random_device dev;
     std::mt19937_64 gen(dev());
     std::uniform_real_distribution<float> load_distribution(0, 1);
 
-    *tuple_count = 0;
-
-    std::vector<std::byte> buf;
-    buf.reserve(512);
+    std::vector<std::byte> local_buffer;
+    std::vector<tuple_size_t> local_tuple_sizes;
+    local_buffer.reserve(256 * generate_chunk_size);
+    local_tuple_sizes.reserve(generate_chunk_size);
 
     while (true) {
-        NativeTuple tup;  // NOLINT(cppcoreguidelines-pro-type-member-init)
-        tup.id = gen();
-        tup.timestamp = gen();
-        tup.load = load_distribution(gen);
-        tup.load_avg_1 = load_distribution(gen);
-        tup.load_avg_5 = load_distribution(gen);
-        tup.load_avg_15 = load_distribution(gen);
-        static_assert(HASH_BYTES % 8 == 0);
-        std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
-                        sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, gen);
+        local_buffer.clear();
+        local_tuple_sizes.clear();
 
-        buf.clear();
-        serialize(tup, &buf);
-        if constexpr (debug_output) {
-            fmt::print("Serialized {}\n", tup);
+        for (uint64_t i = 0; i < generate_chunk_size; ++i) {
+            NativeTuple tup;  // NOLINT(cppcoreguidelines-pro-type-member-init)
+            tup.id = gen();
+            tup.timestamp = gen();
+            tup.load = load_distribution(gen);
+            tup.load_avg_1 = load_distribution(gen);
+            tup.load_avg_5 = load_distribution(gen);
+            tup.load_avg_15 = load_distribution(gen);
+            static_assert(HASH_BYTES % 8 == 0);
+            std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
+                            sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, gen);
+
+            size_t old_size = local_buffer.size();
+            serialize(tup, &local_buffer);
+            size_t tup_size = local_buffer.size() - old_size;
+            local_tuple_sizes.push_back(tup_size);
+
+            if constexpr (debug_output) {
+                fmt::print("Serialized {}\n", tup);
+            }
         }
 
-        const tuple_size_t buf_size = buf.size();
-        const auto write_size = buf_size + sizeof(buf_size);
-        std::byte* const write_to = memory_ptr->fetch_add(write_size);
-        if (write_to > memory_end) {
-            break;
-        }
-        if (memory_end - write_to < static_cast<int32_t>(write_size)) {
-            memory_ptr->store(write_to);
-            break;
-        }
+        {
+            std::scoped_lock lock(*mutex);
+            if (memory->size() + local_buffer.size() <= target_memory_size) {
+                auto old_memory_size = memory->size();
+                auto old_tuple_sizes_size = tuple_sizes->size();
+                memory->resize(old_memory_size + local_buffer.size());
+                tuple_sizes->resize(old_tuple_sizes_size + local_tuple_sizes.size());
 
-        std::copy_n(reinterpret_cast<const std::byte*>(&buf_size), sizeof(buf_size), write_to);
-        std::copy_n(buf.data(), buf.size(), write_to + sizeof(buf_size));
-        (*tuple_count)++;
+                std::copy(begin(local_buffer), end(local_buffer), begin(*memory) + old_memory_size);
+                std::copy(begin(local_tuple_sizes), end(local_tuple_sizes),
+                          begin(*tuple_sizes) + old_tuple_sizes_size);
+            } else {
+                auto read_it = local_buffer.begin();
+                for (const auto& tup_size : local_tuple_sizes) {
+                    if (memory->size() + tup_size > target_memory_size) {
+                        return;
+                    }
+                    std::copy_n(read_it, tup_size, std::back_inserter(*memory));
+                    tuple_sizes->push_back(tup_size);
+                    read_it += tup_size;
+                }
+            }
+        }
     }
 }
 
@@ -144,11 +160,14 @@ constexpr size_t RUN_SIZE = 1024ULL * 16;
 
 using ParseFunc = bool (*)(const std::byte*, tuple_size_t, NativeTuple*);
 template <ParseFunc parse>
-void thread_func(ThreadResult* result, const std::vector<std::byte>& memory) {
+void parse_tuples(ThreadResult* result,
+                  const std::vector<std::byte>& memory,
+                  const std::vector<tuple_size_t>& tuple_sizes) {
     const std::byte* const start_ptr = memory.data();
-    const std::byte* read_ptr = start_ptr;
     const std::byte* const end_ptr = start_ptr + memory.size();
 
+    const std::byte* read_ptr = start_ptr;
+    size_t tuple_index = 0;
     while (true) {
         std::byte read_assurer{0b0};
         size_t total_bytes_read = 0;
@@ -159,18 +178,19 @@ void thread_func(ThreadResult* result, const std::vector<std::byte>& memory) {
                     return;
                 }
                 read_ptr = start_ptr;
+                tuple_index = 0;
             }
 
-            // const tuple_size_t tup_size = sizeof(NativeTuple);
-            const tuple_size_t tup_size = *reinterpret_cast<const tuple_size_t*>(read_ptr);
-            read_ptr += sizeof(tup_size);
+            const tuple_size_t tup_size = tuple_sizes[tuple_index];
 
             NativeTuple tup{};
-            if(!parse(read_ptr, tup_size, &tup)) {
+            if (!parse(read_ptr, tup_size, &tup)) {
                 fmt::print("Invalid input tuple dropped.\n");
             }
 
             read_ptr += tup_size;
+            ++tuple_index;
+
             total_bytes_read += tup_size;
 
             if constexpr (debug_output) {
