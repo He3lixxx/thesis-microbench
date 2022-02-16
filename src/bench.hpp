@@ -97,7 +97,9 @@ void generate_tuples(std::vector<std::byte>* memory,
                      std::mutex* mutex) {
     std::random_device dev;
     std::mt19937_64 gen(dev());
-    std::uniform_real_distribution<float> load_distribution(0, 1);
+    auto load_distribution = [](std::mt19937_64& generator) {
+        return static_cast<double>(generator()) / static_cast<double>(std::mt19937_64::max());
+    };
 
     std::vector<std::byte> local_buffer;
     std::vector<tuple_size_t> local_tuple_sizes;
