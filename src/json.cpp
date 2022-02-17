@@ -158,7 +158,7 @@ IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byt
 
 IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
                                      tuple_size_t tup_size,
-                                     NativeTuple* tup) {
+                                     NativeTuple* tup) noexcept {
     rapidjson::Document d;
 
     if (unlikely(read_ptr[tup_size - 1] != std::byte{0b0})) {
@@ -188,15 +188,15 @@ IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
 }
 
 IMPL_VISIBILITY bool parse_rapidjson_insitu(const std::byte* __restrict__ read_ptr,
-                                     tuple_size_t tup_size,
-                                     NativeTuple* tup) {
+                                            tuple_size_t tup_size,
+                                            NativeTuple* tup) noexcept {
     rapidjson::Document d;
 
     if (unlikely(read_ptr[tup_size - 1] != std::byte{0b0})) {
         return false;
     }
 
-    std::array<std::byte, 256+64> local_buffer;
+    std::array<std::byte, 256 + 64> local_buffer{};
     assert(tup_size <= local_buffer.size());
 
     std::copy_n(read_ptr, local_buffer.size(), local_buffer.data());
@@ -224,7 +224,7 @@ IMPL_VISIBILITY bool parse_rapidjson_insitu(const std::byte* __restrict__ read_p
 
 IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr,
                                          tuple_size_t tup_size,
-                                         NativeTuple* tup) {
+                                         NativeTuple* tup) noexcept {
     rapidjson::Reader reader;
     NativeTupleHandler handler{tup};
 
@@ -293,7 +293,7 @@ IMPL_VISIBILITY bool parse_simdjson_out_of_order(const std::byte* __restrict__ r
 
 IMPL_VISIBILITY bool parse_simdjson_error_codes(const std::byte* __restrict__ read_ptr,
                                                 tuple_size_t tup_size,
-                                                NativeTuple* tup) {
+                                                NativeTuple* tup) noexcept {
     static thread_local simdjson::ondemand::parser parser;
     const simdjson::padded_string_view s(reinterpret_cast<const char*>(read_ptr), tup_size - 2,
                                          tup_size + simdjson::SIMDJSON_PADDING);
@@ -331,7 +331,7 @@ IMPL_VISIBILITY bool parse_simdjson_error_codes(const std::byte* __restrict__ re
 
 IMPL_VISIBILITY bool parse_simdjson_error_codes_early(const std::byte* __restrict__ read_ptr,
                                                       tuple_size_t tup_size,
-                                                      NativeTuple* tup) {
+                                                      NativeTuple* tup) noexcept {
     static thread_local simdjson::ondemand::parser parser;
     const simdjson::padded_string_view s(reinterpret_cast<const char*>(read_ptr), tup_size - 2,
                                          tup_size + simdjson::SIMDJSON_PADDING);

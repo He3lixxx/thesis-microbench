@@ -24,7 +24,7 @@ IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, std::vector<st
 
 IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
                                       tuple_size_t tup_size,
-                                      NativeTuple* tup) {
+                                      NativeTuple* tup) noexcept {
     // TODO: This copies all elements, and doesn't use the advantage that direct attribute access is
     // possible
 

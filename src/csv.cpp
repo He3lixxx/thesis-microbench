@@ -25,7 +25,7 @@ IMPL_VISIBILITY void serialize_csv(const NativeTuple& tup, std::vector<std::byte
 
 IMPL_VISIBILITY bool parse_csv_std(const std::byte* __restrict__ read_ptr,
                                    tuple_size_t tup_size,
-                                   NativeTuple* tup) {
+                                   NativeTuple* tup) noexcept {
 #if __cpp_lib_to_chars >= 201611
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
@@ -71,7 +71,7 @@ IMPL_VISIBILITY bool parse_csv_std(const std::byte* __restrict__ read_ptr,
 
 IMPL_VISIBILITY bool parse_csv_fast_float(const std::byte* __restrict__ read_ptr,
                                           tuple_size_t tup_size,
-                                          NativeTuple* tup) {
+                                          NativeTuple* tup) noexcept {
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
 
@@ -115,7 +115,7 @@ IMPL_VISIBILITY bool parse_csv_fast_float(const std::byte* __restrict__ read_ptr
 
 IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_ptr,
                                            tuple_size_t tup_size,
-                                           NativeTuple* tup) {
+                                           NativeTuple* tup) noexcept {
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
 
