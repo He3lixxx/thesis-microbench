@@ -67,35 +67,28 @@ int main(int argc, char** argv) {
 
     const size_t thread_count = arguments["threads"].as<size_t>();
 
+    // clang-format off
     const std::map generator_parser_map{
-        std::make_pair("native"s, std::make_tuple(generate_tuples<serialize_native>,
-                                                  parse_tuples<parse_native>)),
-        std::make_pair("rapidjson"s, std::make_tuple(generate_tuples<serialize_json>,
-                                                     parse_tuples<parse_rapidjson>)),
-        std::make_pair("rapidjsonsax"s, std::make_tuple(generate_tuples<serialize_json>,
-                                                        parse_tuples<parse_rapidjson_sax>)),
-        std::make_pair("simdjson"s, std::make_tuple(generate_tuples<serialize_json>,
-                                                    parse_tuples<parse_simdjson>)),
-        std::make_pair("simdjsonec"s, std::make_tuple(generate_tuples<serialize_json>,
-                                                      parse_tuples<parse_simdjson_error_codes>)),
-        std::make_pair("simdjsonece"s,
-                       std::make_tuple(generate_tuples<serialize_json>,
-                                       parse_tuples<parse_simdjson_error_codes_early>)),
-        std::make_pair("simdjsonu"s, std::make_tuple(generate_tuples<serialize_json>,
-                                                     parse_tuples<parse_simdjson_unescaped>)),
-        std::make_pair("simdjsonooo"s, std::make_tuple(generate_tuples<serialize_json>,
-                                                       parse_tuples<parse_simdjson_out_of_order>)),
-        std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>,
-                                                   parse_tuples<parse_flatbuffer>)),
-        std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>,
-                                                    parse_tuples<parse_protobuf>)),
-        std::make_pair("csvstd"s, std::make_tuple(generate_tuples<serialize_csv>,
-                                                  parse_tuples<parse_csv_std>)),
-        std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>,
-                                                        parse_tuples<parse_csv_fast_float>)),
-        std::make_pair("csvbenstrasser"s, std::make_tuple(generate_tuples<serialize_csv>,
-                                                          parse_tuples<parse_csv_benstrasser>)),
+        std::make_pair("native"s, std::make_tuple(generate_tuples<serialize_native>, parse_tuples<parse_native>)),
+
+        std::make_pair("rapidjson"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_rapidjson>)),
+        std::make_pair("rapidjsoninsitu"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_rapidjson_insitu>)),
+        std::make_pair("rapidjsonsax"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_rapidjson_sax>)),
+
+        std::make_pair("simdjson"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson>)),
+        std::make_pair("simdjsonec"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_error_codes>)),
+        std::make_pair("simdjsonece"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_error_codes_early>)),
+        std::make_pair("simdjsonu"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_unescaped>)),
+        std::make_pair("simdjsonooo"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_out_of_order>)),
+
+        std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>, parse_tuples<parse_flatbuffer>)),
+        std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>, parse_tuples<parse_protobuf>)),
+
+        std::make_pair("csvstd"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_std>)),
+        std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_fast_float>)),
+        std::make_pair("csvbenstrasser"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_benstrasser>)),
     };
+    // clang-format on
 
     const auto it = generator_parser_map.find(arguments["parser"].as<std::string>());
     if (it == generator_parser_map.end()) {
@@ -114,7 +107,7 @@ int main(int argc, char** argv) {
      */
     std::vector<std::byte> memory;
     std::vector<tuple_size_t> tuple_sizes;
-    memory.reserve(memory_bytes + simdjson::SIMDJSON_PADDING);
+    memory.reserve(memory_bytes + 1024);
     tuple_sizes.reserve(memory_bytes / 64);
 
     {

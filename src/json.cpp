@@ -187,6 +187,41 @@ IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
     return likely(result.ec == std::errc() && result.ptr == container_id_end);
 }
 
+IMPL_VISIBILITY bool parse_rapidjson_insitu(const std::byte* __restrict__ read_ptr,
+                                     tuple_size_t tup_size,
+                                     NativeTuple* tup) {
+    rapidjson::Document d;
+
+    if (unlikely(read_ptr[tup_size - 1] != std::byte{0b0})) {
+        return false;
+    }
+
+    std::array<std::byte, 256+64> local_buffer;
+    assert(tup_size <= local_buffer.size());
+
+    std::copy_n(read_ptr, local_buffer.size(), local_buffer.data());
+
+    d.ParseInsitu(reinterpret_cast<char*>(local_buffer.data()));
+
+    if (unlikely(d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() ||
+                 !d["load"].IsFloat() || !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() ||
+                 !d["load_avg_15"].IsFloat() || !d["container_id"].IsString())) {
+        return false;
+    }
+
+    tup->id = d["id"].GetUint64();
+    tup->timestamp = d["timestamp"].GetUint64();
+    tup->load = d["load"].GetFloat();
+    tup->load_avg_1 = d["load_avg_1"].GetFloat();
+    tup->load_avg_5 = d["load_avg_5"].GetFloat();
+    tup->load_avg_15 = d["load_avg_15"].GetFloat();
+
+    const char* container_id_begin = d["container_id"].GetString();
+    const char* container_id_end = container_id_begin + d["container_id"].GetStringLength();
+    auto result = tup->set_container_id_from_hex_string(container_id_begin, container_id_end);
+    return likely(result.ec == std::errc() && result.ptr == container_id_end);
+}
+
 IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr,
                                          tuple_size_t tup_size,
                                          NativeTuple* tup) {
@@ -371,6 +406,7 @@ IMPL_VISIBILITY bool parse_simdjson_unescaped(const std::byte* __restrict__ read
 template void generate_tuples<serialize_json>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
 
 template void parse_tuples<parse_rapidjson>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+template void parse_tuples<parse_rapidjson_insitu>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
 template void parse_tuples<parse_rapidjson_sax>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
 
 template void parse_tuples<parse_simdjson>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
