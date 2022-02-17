@@ -5,14 +5,19 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <execution>
 #include <mutex>
 #include <random>
 #include <thread>
 #include <vector>
-#include <execution>
 
 #include "constants.hpp"
 #include "parse.hpp"
+
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define likely(x) __builtin_expect(!!(x), 1)
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 // should be multiple of 8
 constexpr size_t HASH_BYTES = 32;  // 256bit = 32 byte
@@ -30,7 +35,7 @@ struct NativeTuple {
 
     [[nodiscard]] std::from_chars_result set_container_id_from_hex_string(const char* str,
                                                                           const char* str_end) {
-        if (__builtin_expect((str_end - str) < static_cast<ptrdiff_t>(2 * HASH_BYTES), 0)) {
+        if (unlikely((str_end - str) < static_cast<ptrdiff_t>(2 * HASH_BYTES))) {
             return {nullptr, std::errc::invalid_argument};
         }
 
@@ -44,9 +49,8 @@ struct NativeTuple {
                 }
             }
         } else {
-            if (__builtin_expect(std::any_of(std::execution::unseq, str, str + 2 * HASH_BYTES,
-                                             [](const char c) { return !is_hex_char(c); }),
-                                 0)) {
+            if (unlikely(std::any_of(std::execution::unseq, str, str + 2 * HASH_BYTES,
+                                     [](const char c) { return !is_hex_char(c); }))) {
                 return {nullptr, std::errc::invalid_argument};
             }
 
@@ -205,8 +209,15 @@ void parse_tuples(ThreadResult* result,
             const tuple_size_t tup_size = tuple_sizes[tuple_index];
 
             NativeTuple tup{};
-            if (!parse(read_ptr, tup_size, &tup)) {
-                throw std::runtime_error("Invalid input tuple dropped");
+            bool success = false;
+            try {
+                success = parse(read_ptr, tup_size, &tup);
+            } catch (const std::exception& e) {
+                success = false;
+            }
+            if (!success) {
+                fmt::print("Invalid input tuple dropped\n");
+                exit(1);  // NOLINT(concurrency-mt-unsafe)
             }
 
             read_ptr += tup_size;

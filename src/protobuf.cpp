@@ -29,7 +29,7 @@ IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
                                     tuple_size_t tup_size,
                                     NativeTuple* tup) {
     Tuple t;
-    if (!t.ParseFromArray(read_ptr, static_cast<int>(tup_size))) {
+    if (unlikely(!t.ParseFromArray(read_ptr, static_cast<int>(tup_size)))) {
         return false;
     }
 

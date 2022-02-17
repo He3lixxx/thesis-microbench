@@ -1,6 +1,6 @@
 #include <fmt/core.h>
-#include <cxxopts.hpp>
 #include <simdjson.h>
+#include <cxxopts.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -76,6 +76,15 @@ int main(int argc, char** argv) {
                                                         parse_tuples<parse_rapidjson_sax>)),
         std::make_pair("simdjson"s, std::make_tuple(generate_tuples<serialize_json>,
                                                     parse_tuples<parse_simdjson>)),
+        std::make_pair("simdjsonec"s, std::make_tuple(generate_tuples<serialize_json>,
+                                                      parse_tuples<parse_simdjson_error_codes>)),
+        std::make_pair("simdjsonece"s,
+                       std::make_tuple(generate_tuples<serialize_json>,
+                                       parse_tuples<parse_simdjson_error_codes_early>)),
+        std::make_pair("simdjsonu"s, std::make_tuple(generate_tuples<serialize_json>,
+                                                     parse_tuples<parse_simdjson_unescaped>)),
+        std::make_pair("simdjsonooo"s, std::make_tuple(generate_tuples<serialize_json>,
+                                                       parse_tuples<parse_simdjson_out_of_order>)),
         std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>,
                                                    parse_tuples<parse_flatbuffer>)),
         std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>,
@@ -94,6 +103,9 @@ int main(int argc, char** argv) {
                    arguments["parser"].as<std::string>());
         exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
+
+    fmt::print("simdjson implementation: {} (should be haswell)\n",
+               simdjson::builtin_implementation()->name());
 
     const auto [generator_func, parser_func] = it->second;
 

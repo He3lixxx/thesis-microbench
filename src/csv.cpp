@@ -31,37 +31,37 @@ IMPL_VISIBILITY bool parse_csv_std(const std::byte* __restrict__ read_ptr,
     const auto* const str_end = str_ptr + tup_size;
 
     auto result = std::from_chars(str_ptr, str_end, tup->id);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = std::from_chars(result.ptr + 1, str_end, tup->timestamp);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = std::from_chars(result.ptr + 1, str_end, tup->load);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_1);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_5);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_15);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = tup->set_container_id_from_hex_string(result.ptr + 1, str_end);
-    return (result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
+    return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
 
 #else
 #warning "std::from_chars for float not supported. parser 'csvstd' will do nothing!"
@@ -76,37 +76,41 @@ IMPL_VISIBILITY bool parse_csv_fast_float(const std::byte* __restrict__ read_ptr
     const auto* const str_end = str_ptr + tup_size;
 
     auto result = std::from_chars(str_ptr, str_end, tup->id);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     result = std::from_chars(result.ptr + 1, str_end, tup->timestamp);
-    if (result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',') {
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
         return false;
     }
 
     auto ff_result = fast_float::from_chars(result.ptr + 1, str_end, tup->load);
-    if (ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 || *ff_result.ptr != ',') {
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
         return false;
     }
 
     ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_1);
-    if (ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 || *ff_result.ptr != ',') {
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
         return false;
     }
 
     ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_5);
-    if (ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 || *ff_result.ptr != ',') {
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
         return false;
     }
 
     ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_15);
-    if (ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 || *ff_result.ptr != ',') {
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
         return false;
     }
 
     result = tup->set_container_id_from_hex_string(ff_result.ptr + 1, str_end);
-    return !(result.ec != std::errc() || result.ptr != str_end - 1 || *result.ptr != '\0');
+    return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
 }
 
 IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_ptr,
@@ -117,14 +121,14 @@ IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_pt
 
     io::CSVReader<7> in("", str_ptr, str_end);
     char* container_id = nullptr;
-    if (!in.read_row(tup->id, tup->timestamp, tup->load, tup->load_avg_1, tup->load_avg_5,
-                     tup->load_avg_15, container_id)) {
+    if (unlikely(!in.read_row(tup->id, tup->timestamp, tup->load, tup->load_avg_1, tup->load_avg_5,
+                              tup->load_avg_15, container_id))) {
         return false;
     }
 
-    auto container_id_end = container_id + std::strlen(container_id);
+    auto* container_id_end = container_id + std::strlen(container_id);
     auto result = tup->set_container_id_from_hex_string(container_id, container_id_end);
-    return result.ec == std::errc() && result.ptr == container_id_end && *result.ptr == '\0';
+    return likely(result.ec == std::errc() && result.ptr == container_id_end);
 }
 
 // clang-format off

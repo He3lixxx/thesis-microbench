@@ -29,7 +29,7 @@ IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
     // possible
 
     auto verifyer = flatbuffers::Verifier(reinterpret_cast<const uint8_t*>(read_ptr), tup_size);
-    if (!VerifyTupleBuffer(verifyer)) {
+    if (unlikely(!VerifyTupleBuffer(verifyer))) {
         return false;
     }
 

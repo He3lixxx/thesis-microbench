@@ -16,7 +16,7 @@ IMPL_VISIBILITY void serialize_native(const NativeTuple& tup, std::vector<std::b
 IMPL_VISIBILITY bool parse_native(const std::byte* __restrict__ read_ptr,
                                   tuple_size_t tup_size,
                                   NativeTuple* tup) {
-    if (tup_size != sizeof(NativeTuple)) {
+    if (unlikely((tup_size != sizeof(NativeTuple)))) {
         return false;
     }
 
