@@ -1,3 +1,7 @@
+#include <BitmapConstructor.h>
+#include <BitmapIterator.h>
+#include <Records.h>
+#include <SerialBitmapIterator.h>
 #include <fmt/compile.h>
 #include <fmt/format.h>
 #include <rapidjson/document.h>
@@ -13,6 +17,43 @@
 #include "json.hpp"
 
 using namespace std::literals::string_view_literals;
+
+IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf) {
+    // TODO: What happens if the tuples have different layout? Does any kind of prediction get
+    // worse?
+
+    thread_local fmt::memory_buffer local_buffer;
+    local_buffer.clear();
+
+    // clang-format off
+    fmt::format_to(std::back_inserter(local_buffer), FMT_COMPILE(R"({{
+"id": {},
+"timestamp": {},
+"load": {:f},
+"load_avg_1": {:f},
+"load_avg_5": {:f},
+"load_avg_15": {:f},
+"container_id":"{:02x}"
+}}
+)"),
+        tup.id,
+        tup.timestamp,
+        tup.load,
+        tup.load_avg_1,
+        tup.load_avg_5,
+        tup.load_avg_15,
+        fmt::join(tup.container_id, "")
+    );
+    // clang-format on
+
+    local_buffer.push_back('\0');
+
+    const auto old_size = buf->size();
+    buf->resize(old_size + local_buffer.size());
+    std::copy(begin(local_buffer), end(local_buffer),
+              reinterpret_cast<char*>(buf->data() + old_size));
+}
+
 
 // adapted from
 // https://github.com/Tencent/rapidjson/blob/master/example/messagereader/messagereader.cpp
@@ -119,42 +160,6 @@ struct NativeTupleHandler
 
     State state_;
 };
-
-IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf) {
-    // TODO: What happens if the tuples have different layout? Does any kind of prediction get
-    // worse?
-
-    thread_local fmt::memory_buffer local_buffer;
-    local_buffer.clear();
-
-    // clang-format off
-    fmt::format_to(std::back_inserter(local_buffer), FMT_COMPILE(R"({{
-"id": {},
-"timestamp": {},
-"load": {:f},
-"load_avg_1": {:f},
-"load_avg_5": {:f},
-"load_avg_15": {:f},
-"container_id": "{:02x}"
-}}
-)"),
-        tup.id,
-        tup.timestamp,
-        tup.load,
-        tup.load_avg_1,
-        tup.load_avg_5,
-        tup.load_avg_15,
-        fmt::join(tup.container_id, "")
-    );
-    // clang-format on
-
-    local_buffer.push_back('\0');
-
-    const auto old_size = buf->size();
-    buf->resize(old_size + local_buffer.size());
-    std::copy(begin(local_buffer), end(local_buffer),
-              reinterpret_cast<char*>(buf->data() + old_size));
-}
 
 IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
                                      tuple_size_t tup_size,
@@ -402,6 +407,56 @@ IMPL_VISIBILITY bool parse_simdjson_unescaped(const std::byte* __restrict__ read
     return true;
 }
 
+IMPL_VISIBILITY bool parse_pison(const std::byte* __restrict__ read_ptr,
+                                 tuple_size_t tup_size,
+                                 NativeTuple* tup) {
+    char* text = const_cast<char*>(reinterpret_cast<const char*>(read_ptr));
+
+    // TODO: These malloc() and free() like crazy, but I also can't keep the buffers.
+    auto bitmap = pison::SerialBitmap(text, 1);
+    bitmap.setRecordLength(tup_size - 1);
+    bitmap.indexConstruction();
+
+    auto it = pison::SerialBitmapIterator(&bitmap);
+    if (!it.isObject()) {
+        return false;
+    }
+
+    const char* id_str = "id";
+    const char* timestamp_str = "timestamp";
+    const char* load_str = "load";
+    const char* load_avg_1_str = "load_avg_1";
+    const char* load_avg_5_str = "load_avg_5";
+    const char* load_avg_15_str = "load_avg_15";
+    const char* container_id_str = "container_id";
+    pison::unordered_set<const char*> keys{id_str,          timestamp_str,  load_str,
+                                           load_avg_1_str,  load_avg_5_str, load_avg_15_str,
+                                           container_id_str};
+
+    for (const char* found_key = nullptr; (found_key = it.moveToKey(keys)) != nullptr;) {
+        // TODO: This will be slow as hell, already with this. Don't really know if I want to
+        // implement number parsing
+        if (found_key == id_str) {
+        } else if (found_key == timestamp_str) {
+        } else if (found_key == load_str) {
+        } else if (found_key == load_avg_1_str) {
+        } else if (found_key == load_avg_5_str) {
+        } else if (found_key == load_avg_15_str) {
+        } else if (found_key == container_id_str) {
+            auto val_ptr = it.getValue();
+            auto val_end = val_ptr + strlen(val_ptr);
+            auto result = tup->set_container_id_from_hex_string(val_ptr, val_end);
+            pison::free(val_ptr);
+            if (unlikely(result.ec != std::errc() || result.ptr != val_end)) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
 // clang-format off
 template void generate_tuples<serialize_json>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
 
@@ -414,3 +469,5 @@ template void parse_tuples<parse_simdjson_out_of_order>(ThreadResult* result, co
 template void parse_tuples<parse_simdjson_error_codes>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
 template void parse_tuples<parse_simdjson_error_codes_early>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
 template void parse_tuples<parse_simdjson_unescaped>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);
+
+template void parse_tuples<parse_pison>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes);

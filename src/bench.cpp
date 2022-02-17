@@ -81,6 +81,8 @@ int main(int argc, char** argv) {
         std::make_pair("simdjsonu"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_unescaped>)),
         std::make_pair("simdjsonooo"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_out_of_order>)),
 
+        std::make_pair("pison"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_pison>)),
+
         std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>, parse_tuples<parse_flatbuffer>)),
         std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>, parse_tuples<parse_protobuf>)),
 
@@ -161,8 +163,10 @@ int main(int argc, char** argv) {
         const auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
         const auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
 
+#ifdef NDEBUG
         fmt::print(stderr, "{:11.6g} t/s,   {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
                    bytes_per_second, bytes_per_second / 1e9);
+#endif
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }

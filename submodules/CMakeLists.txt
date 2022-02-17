@@ -17,3 +17,9 @@ add_subdirectory(flatbuffers ${CMAKE_BINARY_DIR}/flatbuffers-build EXCLUDE_FROM_
 
 add_library(fast-cpp-csv-parser INTERFACE)
 target_include_directories(fast-cpp-csv-parser INTERFACE fast-cpp-csv-parser/)
+
+set(PISON_DIR ${CMAKE_CURRENT_LIST_DIR}/Pison)
+file(GLOB PISON_SRCS ${PISON_DIR}/src/*.cpp)
+add_library(pison STATIC ${PISON_SRCS})
+target_include_directories(pison SYSTEM PUBLIC ${PISON_DIR}/src/)
+target_compile_options(pison PRIVATE -w)
