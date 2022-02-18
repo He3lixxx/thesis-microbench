@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
 
     auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(parser_func, &thread_results[i], memory, tuple_sizes);
+        threads.emplace_back(parser_func, &thread_results[i], std::ref(memory), std::ref(tuple_sizes));
     }
 
     while (true) {
