@@ -97,8 +97,10 @@ int main(int argc, char** argv) {
         exit(1);  // NOLINT(concurrency-mt-unsafe)
     }
 
-    fmt::print("simdjson implementation: {} (should be haswell)\n",
-               simdjson::builtin_implementation()->name());
+    if (simdjson::builtin_implementation()->name() != "haswell") {
+        fmt::print("\nWARNING\nsimdjson implementation: {} (should be haswell)\n\n",
+                   simdjson::builtin_implementation()->name());
+    }
 
     const auto [generator_func, parser_func] = it->second;
 
