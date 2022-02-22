@@ -5,7 +5,6 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <execution>
 #include <mutex>
 #include <random>
 #include <thread>
@@ -23,6 +22,19 @@
 constexpr size_t HASH_BYTES = 32;  // 256bit = 32 byte
 
 using tuple_size_t = uint_fast16_t;
+
+template <class InputIt, class Pred>
+bool vectorizable_any_of(InputIt first, InputIt last, Pred pred) {
+    // supposed to replace:
+    // std::any_of(std::execution::unseq, first, last, pred);
+    // on environments where std::execution is not yet available (node-01: gcc09, no <execution>)
+    // 18% faster than std::any_of on t460 with clang13, O3, measuring simdjson (0,81 vs 0,96)
+
+    bool val = false;
+    for (; first != last; ++first)
+        val |= pred(*first);
+    return val;
+}
 
 struct NativeTuple {
     uint64_t id;
@@ -49,8 +61,8 @@ struct NativeTuple {
                 }
             }
         } else {
-            if (unlikely(std::any_of(std::execution::unseq, str, str + 2 * HASH_BYTES,
-                                     [](const char c) { return !is_hex_char(c); }))) {
+            if (unlikely(vectorizable_any_of(str, str + 2 * HASH_BYTES,
+                                             [](const char c) { return !is_hex_char(c); }))) {
                 return {nullptr, std::errc::invalid_argument};
             }
 

@@ -27,6 +27,7 @@ IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
                                       NativeTuple* tup) noexcept {
     // TODO: This copies all elements, and doesn't use the advantage that direct attribute access is
     // possible
+    // TODO: Does the compiler optimize this to direct attribute access?
 
     auto verifyer = flatbuffers::Verifier(reinterpret_cast<const uint8_t*>(read_ptr), tup_size);
     if (unlikely(!VerifyTupleBuffer(verifyer))) {
