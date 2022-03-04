@@ -121,9 +121,6 @@ struct NativeTupleHandler
 };
 
 IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf) {
-    // TODO: What happens if the tuples have different layout? Does any kind of prediction get
-    // worse?
-
     thread_local fmt::memory_buffer local_buffer;
     local_buffer.clear();
 
@@ -165,7 +162,6 @@ IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
         return false;
     }
 
-    // TODO: Insitu-Parsing in local buffer to prevent allocations?
     d.Parse(reinterpret_cast<const char*>(read_ptr));
 
     if (unlikely(d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() ||
@@ -373,7 +369,6 @@ IMPL_VISIBILITY bool parse_simdjson_unescaped(const std::byte* __restrict__ read
                                          tup_size + simdjson::SIMDJSON_PADDING);
     simdjson::ondemand::document d = parser.iterate(s);
 
-    // TODO: Changing the order had a minimal effect here (2,8M t/s to 2,7M t/s. Relevant?)
     for (auto field : d.get_object()) {
         std::string_view key = field.unescaped_key();
         if (key == "id"sv) {

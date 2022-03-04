@@ -55,6 +55,9 @@ IMPL_VISIBILITY void serialize_avro(const NativeTuple& tup, std::vector<std::byt
 IMPL_VISIBILITY bool parse_avro(const std::byte* __restrict__ read_ptr,
                                 tuple_size_t tup_size,
                                 NativeTuple* tup) noexcept {
+    // We can not do the usual tuple size verification because avro doesn't have fixed-size entries
+    // the decoding will throw if there are too few bytes.
+
     auto in = avro::memoryInputStream(reinterpret_cast<const uint8_t*>(read_ptr), tup_size);
 
     // thread_local to prevent repeated costs -- compiler should be able to make it a stack vairable

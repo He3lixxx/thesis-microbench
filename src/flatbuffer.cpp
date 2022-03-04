@@ -25,9 +25,9 @@ IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, std::vector<st
 IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
                                       tuple_size_t tup_size,
                                       NativeTuple* tup) noexcept {
-    // TODO: This copies all elements, and doesn't use the advantage that direct attribute access is
-    // possible
-    // TODO: Does the compiler optimize this to direct attribute access?
+    // While this looks as if it makes a copy of the tuple, the compiler (tested: clang13) optimizes
+    // this heavily: this whole function is inlined. Values of the tuple are loaded from memory into
+    // registers exactly once and then used.
 
     auto verifyer = flatbuffers::Verifier(reinterpret_cast<const uint8_t*>(read_ptr), tup_size);
     if (unlikely(!VerifyTupleBuffer(verifyer))) {

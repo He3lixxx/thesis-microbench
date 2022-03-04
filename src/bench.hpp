@@ -156,7 +156,8 @@ void generate_tuples(std::vector<std::byte>* memory,
             tup.load_avg_15 = load_distribution(gen);
             static_assert(HASH_BYTES % 8 == 0);
             std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
-                            sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, std::ref(gen));
+                            sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8,
+                            std::ref(gen));
 
             auto old_size = static_cast<int64_t>(local_buffer.size());
             serialize(tup, &local_buffer);
