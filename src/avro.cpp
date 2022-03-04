@@ -14,8 +14,8 @@ IMPL_VISIBILITY void serialize_avro(const NativeTuple& tup, std::vector<std::byt
     // unsigned to signed here was implementation defined up to c++17.
     // With c++20, we're guaranteed that uint64_t -> int64_t -> uint64_t gives the same result.
     // (https://en.cppreference.com/w/cpp/language/implicit_conversion#Integral_conversions)
-    t.id = tup.id;
-    t.timestamp = tup.timestamp;
+    t.id = static_cast<int64_t>(tup.id);
+    t.timestamp = static_cast<int64_t>(tup.timestamp);
     t.load = tup.load;
     t.load_avg_1 = tup.load_avg_1;
     t.load_avg_5 = tup.load_avg_5;
@@ -39,8 +39,8 @@ IMPL_VISIBILITY void serialize_avro(const NativeTuple& tup, std::vector<std::byt
 
     // avro does it right: You want to get the data written to a memoryOutputStream? You can't!
     auto in = avro::memoryInputStream(*out);
-    const uint8_t* read_ptr;
-    size_t read_len;
+    const uint8_t* read_ptr = nullptr;
+    size_t read_len = 0;
     in->next(&read_ptr, &read_len);
 
     // Not generally correct -- but our tuples are small, chunks for avro are 4*1024 by default, we
