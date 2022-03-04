@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "avro.hpp"
 #include "bench.hpp"
 #include "csv.hpp"
 #include "flatbuffer.hpp"
@@ -83,6 +84,7 @@ int main(int argc, char** argv) {
 
         std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>, parse_tuples<parse_flatbuffer>)),
         std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>, parse_tuples<parse_protobuf>)),
+        std::make_pair("avro"s, std::make_tuple(generate_tuples<serialize_avro>, parse_tuples<parse_avro>)),
 
         std::make_pair("csvstd"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_std>)),
         std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_fast_float>)),

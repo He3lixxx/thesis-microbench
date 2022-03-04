@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <mutex>
 #include <random>
 #include <thread>
@@ -131,8 +132,7 @@ void generate_tuples(std::vector<std::byte>* memory,
                      size_t target_memory_size,
                      std::vector<tuple_size_t>* tuple_sizes,
                      std::mutex* mutex) {
-    std::random_device dev;
-    std::mt19937_64 gen(dev());
+    std::mt19937_64 gen(std::random_device{}());
     auto load_distribution = [](std::mt19937_64& generator) {
         return static_cast<double>(generator()) / static_cast<double>(std::mt19937_64::max());
     };
@@ -156,7 +156,7 @@ void generate_tuples(std::vector<std::byte>* memory,
             tup.load_avg_15 = load_distribution(gen);
             static_assert(HASH_BYTES % 8 == 0);
             std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
-                            sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, gen);
+                            sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8, std::ref(gen));
 
             auto old_size = static_cast<int64_t>(local_buffer.size());
             serialize(tup, &local_buffer);
@@ -202,16 +202,16 @@ void parse_tuples(ThreadResult* result,
                   const std::vector<std::byte>& memory,
                   const std::vector<tuple_size_t>& tuple_sizes) {
     const std::byte* const start_ptr = memory.data();
-    const std::byte* const end_ptr = start_ptr + memory.size();
-
     const std::byte* read_ptr = start_ptr;
     size_t tuple_index = 0;
+    const size_t tuple_count = tuple_sizes.size();
+
     while (true) {
         std::byte read_assurer{0b0};
         size_t total_bytes_read = 0;
 
         for (size_t i = 0; i < RUN_SIZE; ++i) {
-            if (read_ptr >= end_ptr) {
+            if (tuple_index == tuple_count) {
                 if constexpr (debug_output) {
                     return;
                 }
@@ -225,7 +225,7 @@ void parse_tuples(ThreadResult* result,
             bool success = false;
             try {
                 success = parse(read_ptr, tup_size, &tup);
-            } catch (const std::exception& e) {
+            } catch (...) {
                 success = false;
             }
             if (!success) {
