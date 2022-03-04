@@ -1,5 +1,3 @@
-#include <fmt/format.h>
-#include <array>
 #include <cstdint>
 
 #include "./tuple.pb.h"

@@ -2,7 +2,7 @@
 #include <array>
 #include <cstdint>
 
-#include "./tuple_generated.h"
+#include "./tuple.fb.h"
 #include "bench.hpp"
 #include "flatbuffer.hpp"
 
