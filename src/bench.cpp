@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
     tuple_sizes.reserve(memory_bytes / 64);
 
     {
-        auto gen_thread_count = std::max(1u, std::thread::hardware_concurrency() - 1);
+        auto gen_thread_count = std::max(1U, std::thread::hardware_concurrency() - 1);
 
         fmt::print("Generating tuples for {} B of memory using {} threads.\n", memory_bytes,
                    gen_thread_count);
@@ -147,7 +147,8 @@ int main(int argc, char** argv) {
 
     auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(parser_func, &thread_results[i], std::ref(memory), std::ref(tuple_sizes));
+        threads.emplace_back(parser_func, &thread_results[i], std::ref(memory),
+                             std::ref(tuple_sizes));
     }
 
     while (true) {

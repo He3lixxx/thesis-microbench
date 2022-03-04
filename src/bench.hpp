@@ -31,8 +31,9 @@ bool vectorizable_any_of(InputIt first, InputIt last, Pred pred) {
     // 18% faster than std::any_of on t460 with clang13, O3, measuring simdjson (0,81 vs 0,96)
 
     bool val = false;
-    for (; first != last; ++first)
+    for (; first != last; ++first) {
         val |= pred(*first);
+    }
     return val;
 }
 
