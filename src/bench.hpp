@@ -75,13 +75,6 @@ struct NativeTuple {
         }
         return {str + 2 * HASH_BYTES, std::errc()};
     }
-
-    [[nodiscard]] std::byte read_all_values() {
-        return (*reinterpret_cast<std::byte*>(&id) ^ *reinterpret_cast<std::byte*>(&timestamp) ^
-                *reinterpret_cast<std::byte*>(&load) ^ *reinterpret_cast<std::byte*>(&load_avg_1) ^
-                *reinterpret_cast<std::byte*>(&load_avg_5) ^
-                *reinterpret_cast<std::byte*>(&load_avg_15) ^ container_id[0]);
-    }
 };
 
 template <>
@@ -208,7 +201,6 @@ void parse_tuples(ThreadResult* result,
     const size_t tuple_count = tuple_sizes.size();
 
     while (true) {
-        std::byte read_assurer{0b0};
         size_t total_bytes_read = 0;
 
         for (size_t i = 0; i < RUN_SIZE; ++i) {
@@ -229,10 +221,11 @@ void parse_tuples(ThreadResult* result,
             } catch (...) {
                 success = false;
             }
-            if (!success) {
+            if (unlikely(!success)) {
                 fmt::print("Invalid input tuple dropped\n");
                 exit(1);  // NOLINT(concurrency-mt-unsafe)
             }
+            DoNotOptimize(tup);
 
             read_ptr += tup_size;
             ++tuple_index;
@@ -242,10 +235,8 @@ void parse_tuples(ThreadResult* result,
             if constexpr (debug_output) {
                 fmt::print("Thread read tuple {}\n", tup);
             }
-            read_assurer ^= tup.read_all_values();
         }
 
-        DoNotOptimize(read_assurer);
         result->tuples_read += RUN_SIZE;
         result->bytes_read += total_bytes_read;
     }
