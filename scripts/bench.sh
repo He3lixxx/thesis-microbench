@@ -8,6 +8,7 @@ set -x
 timeout --foreground $timeout ./bench -t$thread_count -m$memory_size -pnative
 timeout --foreground $timeout ./bench -t$thread_count -m$memory_size -pflatbuf
 timeout --foreground $timeout ./bench -t$thread_count -m$memory_size -pprotobuf
+timeout --foreground $timeout ./bench -t$thread_count -m$memory_size -pavro
 
 timeout --foreground $timeout ./bench -t$thread_count -m$memory_size -pcsvstd
 timeout --foreground $timeout ./bench -t$thread_count -m$memory_size -pcsvfastfloat
