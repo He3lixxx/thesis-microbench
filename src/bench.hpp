@@ -194,13 +194,14 @@ using ParseFunc = bool (*)(const std::byte*, tuple_size_t, NativeTuple*);
 template <ParseFunc parse>
 void parse_tuples(ThreadResult* result,
                   const std::vector<std::byte>& memory,
-                  const std::vector<tuple_size_t>& tuple_sizes) {
+                  const std::vector<tuple_size_t>& tuple_sizes,
+                  const std::atomic<bool>& stop_flag) {
     const std::byte* const start_ptr = memory.data();
     const std::byte* read_ptr = start_ptr;
     size_t tuple_index = 0;
     const size_t tuple_count = tuple_sizes.size();
 
-    while (true) {
+    while (!stop_flag.load(std::memory_order_relaxed)) {
         size_t total_bytes_read = 0;
 
         for (size_t i = 0; i < RUN_SIZE; ++i) {

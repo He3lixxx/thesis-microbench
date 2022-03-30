@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -20,6 +21,25 @@
 
 using std::string_literals::operator""s;
 
+std::tuple<double, double, double> mean_stddev_99error_from_samples(
+    const std::vector<double>& samples) {
+    double sum = std::accumulate(begin(samples), end(samples), 0.0);
+    double mean = sum / samples.size();
+
+    double squared_error_sum = 0;
+    for (auto sample : samples) {
+        squared_error_sum += (sample - mean) * (sample - mean);
+    }
+
+    double variance = squared_error_sum / (samples.size() - 1);
+    double std_dev = sqrt(variance);
+
+    // 99% => z* = 2.58
+    double error = 2.58 * std_dev / sqrt(samples.size());
+
+    return std::make_tuple(mean, std_dev, error);
+}
+
 int main(int argc, char** argv) {
     /*
      * Command Line Arguments
@@ -32,6 +52,8 @@ int main(int argc, char** argv) {
         ("m,memory", "How much memory to use for input tuples. Supported suffixed: k, m, g, t", cxxopts::value<std::string>())
         ("t,threads", "How many threads to use for parsing tuples.", cxxopts::value<size_t>())
         ("p,parser", "Parser to use", cxxopts::value<std::string>())
+        ("w,warmup", "Seconds to wait for warmup", cxxopts::value<size_t>()->default_value("10"))
+        ("i,iterations", "Seconds to measure", cxxopts::value<size_t>()->default_value("30"))
         ("h,help", "Print usage");
     // clang-format on
 
@@ -67,6 +89,8 @@ int main(int argc, char** argv) {
     }
 
     const size_t thread_count = arguments["threads"].as<size_t>();
+    const size_t warmup_seconds = arguments["warmup"].as<size_t>();
+    const size_t measure_seconds = arguments["iterations"].as<size_t>();
 
     // clang-format off
     const std::map generator_parser_map{
@@ -147,14 +171,16 @@ int main(int argc, char** argv) {
     std::vector<std::thread> threads;
     threads.reserve(thread_count);
     std::vector<ThreadResult> thread_results(thread_count);
+    std::atomic<bool> stop_flag = false;
 
     auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
         threads.emplace_back(parser_func, &thread_results[i], std::ref(memory),
-                             std::ref(tuple_sizes));
+                             std::ref(tuple_sizes), std::ref(stop_flag));
     }
 
-    while (true) {
+    fmt::print(stderr, "Warmup...\n");
+    for (size_t iter = 0; iter < warmup_seconds; ++iter) {
         size_t tuples_sum = 0;
         size_t bytes_sum = 0;
         for (auto& result : thread_results) {
@@ -168,9 +194,59 @@ int main(int argc, char** argv) {
         const auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
         const auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
 
-        fmt::print(stderr, "{:11.6g} t/s,   {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
+        fmt::print(stderr, "{:11.6g} t/s.  {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
                    bytes_per_second, bytes_per_second / 1e9);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
+
+    std::vector<double> tuples_per_second_results;
+    tuples_per_second_results.reserve(1000);
+    std::vector<double> bytes_per_second_results;
+    bytes_per_second_results.reserve(1000);
+
+    fmt::print(stderr, "Measuring...\n");
+    for (size_t iter = 0; iter < measure_seconds; ++iter) {
+        size_t tuples_sum = 0;
+        size_t bytes_sum = 0;
+        for (auto& result : thread_results) {
+            tuples_sum += result.tuples_read.exchange(0);
+            bytes_sum += result.bytes_read.exchange(0);
+        }
+        const auto end = std::chrono::high_resolution_clock::now();
+        const std::chrono::duration<double> diff = end - timestamp;
+        timestamp = end;
+
+        const auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
+        const auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
+
+        tuples_per_second_results.push_back(tuples_per_second);
+        bytes_per_second_results.push_back(bytes_per_second);
+
+        fmt::print(stderr, "{:11.6g} t/s.  {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
+                   bytes_per_second, bytes_per_second / 1e9);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+
+    stop_flag.store(true);
+
+    auto [tuples_mean, tuples_stddev, tuples_error] =
+        mean_stddev_99error_from_samples(tuples_per_second_results);
+    fmt::print(stderr,
+               "mean: {:11.6g} t/s.   stddev: {:11.6g} t/s (= {:6.3f}% of mean).   99% error: "
+               "{:11.6g} t/s (= {:6.3f}% of mean)\n",
+               tuples_mean, tuples_stddev, (tuples_stddev / tuples_mean * 100), tuples_error,
+               (tuples_error / tuples_mean * 100));
+
+    auto [bytes_mean, bytes_stddev, bytes_error] =
+        mean_stddev_99error_from_samples(bytes_per_second_results);
+    fmt::print(stderr,
+               "mean: {:11.6g} B/s.   stddev: {:11.6g} B/s (= {:6.3f}% of mean).   99% error: "
+               "{:11.6g} B/s (= {:6.3f}% of mean)\n",
+               bytes_mean, bytes_stddev, (bytes_stddev / bytes_mean * 100), bytes_error,
+               (bytes_error / bytes_mean * 100));
+
+    for (auto& thread : threads)
+        thread.join();
 }
