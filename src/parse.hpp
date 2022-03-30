@@ -17,19 +17,15 @@ constexpr inline unsigned char parse_hex_char(char c) {
 
 constexpr inline std::from_chars_result parse_uint_str(const char* str,
                                                        const char* str_end,
-                                                       uint64_t* result) {
-    if constexpr (use_std_from_chars) {
-        return std::from_chars(str, str_end, *result);
-    } else {
-        if (*str < '0' || *str > '9') {
-            return {nullptr, std::errc::invalid_argument};
-        }
-
-        *result = 0;
-        while (str != str_end && '0' <= *str && *str <= '9') {
-            *result = (*result * 10) + *str - '0';
-            str++;
-        }
-        return {str, std::errc()};
+                                                       uint64_t& result) {
+    if (*str < '0' || *str > '9') {
+        return {nullptr, std::errc::invalid_argument};
     }
+
+    result = 0;
+    while (str != str_end && '0' <= *str && *str <= '9') {
+        result = (result * 10) + *str - '0';
+        str++;
+    }
+    return {str, std::errc()};
 }

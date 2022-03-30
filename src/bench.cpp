@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
 
         std::make_pair("csvstd"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_std>)),
         std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_fast_float>)),
+        std::make_pair("csvfastfloatcustom"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_fast_float_custom>)),
         std::make_pair("csvbenstrasser"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_benstrasser>)),
     };
     // clang-format on

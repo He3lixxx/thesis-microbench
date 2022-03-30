@@ -113,6 +113,50 @@ IMPL_VISIBILITY bool parse_csv_fast_float(const std::byte* __restrict__ read_ptr
     return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
 }
 
+IMPL_VISIBILITY bool parse_csv_fast_float_custom(const std::byte* __restrict__ read_ptr,
+                                                 tuple_size_t tup_size,
+                                                 NativeTuple* tup) noexcept {
+    const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
+    const auto* const str_end = str_ptr + tup_size;
+
+    auto result = parse_uint_str(str_ptr, str_end, tup->id);
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
+        return false;
+    }
+
+    result = parse_uint_str(result.ptr + 1, str_end, tup->timestamp);
+    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
+        return false;
+    }
+
+    auto ff_result = fast_float::from_chars(result.ptr + 1, str_end, tup->load);
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
+        return false;
+    }
+
+    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_1);
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
+        return false;
+    }
+
+    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_5);
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
+        return false;
+    }
+
+    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_15);
+    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
+                 *ff_result.ptr != ',')) {
+        return false;
+    }
+
+    result = tup->set_container_id_from_hex_string(ff_result.ptr + 1, str_end);
+    return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
+}
+
 IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_ptr,
                                            tuple_size_t tup_size,
                                            NativeTuple* tup) noexcept {
