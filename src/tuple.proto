@@ -2,6 +2,6 @@ syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 
 message Tuple {
-  fixed64 id = 1;
-  fixed64 timestamp = 2;
+  uint64 id = 1;
+  uint64 timestamp = 2;
 }

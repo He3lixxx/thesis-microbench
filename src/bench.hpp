@@ -77,8 +77,8 @@ void generate_tuples(std::vector<std::byte>* memory,
 
         for (uint64_t i = 0; i < generate_chunk_size; ++i) {
             NativeTuple tup;  // NOLINT(cppcoreguidelines-pro-type-member-init)
-            tup.id = gen();
-            tup.timestamp = gen();
+            tup.id = gen() % 100;
+            tup.timestamp = gen() % 100;
 
             auto old_size = static_cast<int64_t>(local_buffer.size());
             serialize(tup, &local_buffer);
