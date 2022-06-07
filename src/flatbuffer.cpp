@@ -23,16 +23,11 @@ IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, std::vector<st
 }
 
 IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
-                                      tuple_size_t tup_size,
+                                      tuple_size_t /*tup_size*/,
                                       NativeTuple* tup) noexcept {
     // While this looks as if it makes a copy of the tuple, the compiler (tested: clang13) optimizes
     // this heavily: this whole function is inlined. Values of the tuple are loaded from memory into
     // registers exactly once and then used.
-
-    auto verifyer = flatbuffers::Verifier(reinterpret_cast<const uint8_t*>(read_ptr), tup_size);
-    if (unlikely(!VerifyTupleBuffer(verifyer))) {
-        return false;
-    }
 
     const auto* t = GetTuple(read_ptr);
     tup->id = t->id();

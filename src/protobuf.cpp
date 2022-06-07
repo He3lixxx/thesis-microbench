@@ -27,10 +27,7 @@ IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
                                     tuple_size_t tup_size,
                                     NativeTuple* tup) noexcept {
     thread_local Tuple t;
-    if (unlikely(!t.ParseFromArray(read_ptr, static_cast<int>(tup_size)))) {
-        return false;
-    }
-
+    t.ParseFromArray(read_ptr, static_cast<int>(tup_size));
     tup->id = t.id();
     tup->timestamp = t.timestamp();
     tup->load = t.load();

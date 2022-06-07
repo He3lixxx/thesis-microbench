@@ -21,9 +21,6 @@ struct NativeTupleHandler
     explicit NativeTupleHandler(NativeTuple* tup) : tup_(tup) {}
 
     bool StartObject() {
-        if (unlikely(state_ != kExpectObjectStart)) {
-            return false;
-        }
         state_ = kExpectAttrNameOrObjectEnd;
         return true;
     }
@@ -88,16 +85,13 @@ struct NativeTupleHandler
     }
 
     bool String(const Ch* str, rapidjson::SizeType length, bool /*copy*/) {
-        if (unlikely(state_ != kExpectContainerId)) {
-            return false;
-        }
         state_ = kExpectAttrNameOrObjectEnd;
-        auto result = tup_->set_container_id_from_hex_string(str, str + length);
-        return likely(result.ec == std::errc() && result.ptr == str + length);
+        [[maybe_unused]] auto result = tup_->set_container_id_from_hex_string(str, str + length);
+        return true;
     }
 
     [[nodiscard]] bool EndObject(rapidjson::SizeType /*unused*/) const {
-        return state_ == kExpectAttrNameOrObjectEnd;
+        return true;
     }
 
     static bool Default() { return false; }
@@ -154,21 +148,11 @@ IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byt
 }
 
 IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
-                                     tuple_size_t tup_size,
+                                     tuple_size_t /*tup_size*/,
                                      NativeTuple* tup) noexcept {
     rapidjson::Document d;
 
-    if (unlikely(read_ptr[tup_size - 1] != std::byte{0b0})) {
-        return false;
-    }
-
     d.Parse(reinterpret_cast<const char*>(read_ptr));
-
-    if (unlikely(d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() ||
-                 !d["load"].IsFloat() || !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() ||
-                 !d["load_avg_15"].IsFloat() || !d["container_id"].IsString())) {
-        return false;
-    }
 
     tup->id = d["id"].GetUint64();
     tup->timestamp = d["timestamp"].GetUint64();
@@ -179,32 +163,21 @@ IMPL_VISIBILITY bool parse_rapidjson(const std::byte* __restrict__ read_ptr,
 
     const char* container_id_begin = d["container_id"].GetString();
     const char* container_id_end = container_id_begin + d["container_id"].GetStringLength();
-    auto result = tup->set_container_id_from_hex_string(container_id_begin, container_id_end);
-    return likely(result.ec == std::errc() && result.ptr == container_id_end);
+    [[ maybe_unused]] auto result = tup->set_container_id_from_hex_string(container_id_begin, container_id_end);
+    return true;
 }
 
 IMPL_VISIBILITY bool parse_rapidjson_insitu(const std::byte* __restrict__ read_ptr,
-                                            tuple_size_t tup_size,
+                                            tuple_size_t /*tup_size*/,
                                             NativeTuple* tup) noexcept {
     rapidjson::Document d;
 
-    if (unlikely(read_ptr[tup_size - 1] != std::byte{0b0})) {
-        return false;
-    }
-
     std::array<std::byte, 256 + 64> local_buffer{};
-    assert(tup_size <= local_buffer.size());
 
     std::copy_n(read_ptr, local_buffer.size(), local_buffer.data());
 
     d.ParseInsitu(reinterpret_cast<char*>(local_buffer.data()));
 
-    if (unlikely(d.HasParseError() || !d["id"].IsUint64() || !d["timestamp"].IsUint64() ||
-                 !d["load"].IsFloat() || !d["load_avg_1"].IsFloat() || !d["load_avg_5"].IsFloat() ||
-                 !d["load_avg_15"].IsFloat() || !d["container_id"].IsString())) {
-        return false;
-    }
-
     tup->id = d["id"].GetUint64();
     tup->timestamp = d["timestamp"].GetUint64();
     tup->load = d["load"].GetFloat();
@@ -214,22 +187,20 @@ IMPL_VISIBILITY bool parse_rapidjson_insitu(const std::byte* __restrict__ read_p
 
     const char* container_id_begin = d["container_id"].GetString();
     const char* container_id_end = container_id_begin + d["container_id"].GetStringLength();
-    auto result = tup->set_container_id_from_hex_string(container_id_begin, container_id_end);
-    return likely(result.ec == std::errc() && result.ptr == container_id_end);
+    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(container_id_begin, container_id_end);
+    return true;
 }
 
 IMPL_VISIBILITY bool parse_rapidjson_sax(const std::byte* __restrict__ read_ptr,
-                                         tuple_size_t tup_size,
+                                         tuple_size_t /*tup_size*/,
                                          NativeTuple* tup) noexcept {
     rapidjson::Reader reader;
     NativeTupleHandler handler{tup};
 
-    if (unlikely(read_ptr[tup_size - 1] != std::byte{0b0})) {
-        return false;
-    }
     rapidjson::StringStream ss(reinterpret_cast<const char*>(read_ptr));
+    reader.Parse(ss, handler);
 
-    return likely(reader.Parse(ss, handler) != nullptr);
+    return true;
 }
 
 IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr,
@@ -248,13 +219,8 @@ IMPL_VISIBILITY bool parse_simdjson(const std::byte* __restrict__ read_ptr,
     tup->load_avg_15 = static_cast<float>(d["load_avg_15"].get_double());
 
     std::string_view container_id_view = d["container_id"].get_string();
-    auto result = tup->set_container_id_from_hex_string(
+    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
         container_id_view.data(), container_id_view.data() + container_id_view.size());
-
-    if (unlikely(result.ec != std::errc() ||
-                 result.ptr != container_id_view.data() + container_id_view.size())) {
-        throw std::invalid_argument("container_id");
-    }
 
     return true;
 }
@@ -276,13 +242,8 @@ IMPL_VISIBILITY bool parse_simdjson_out_of_order(const std::byte* __restrict__ r
     tup->timestamp = d["timestamp"].get_uint64();
 
     std::string_view container_id_view = d["container_id"].get_string();
-    auto result = tup->set_container_id_from_hex_string(
+    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
         container_id_view.data(), container_id_view.data() + container_id_view.size());
-
-    if (unlikely(result.ec != std::errc() ||
-                 result.ptr != container_id_view.data() + container_id_view.size())) {
-        throw std::invalid_argument("container_id");
-    }
 
     return true;
 }
@@ -294,35 +255,31 @@ IMPL_VISIBILITY bool parse_simdjson_error_codes(const std::byte* __restrict__ re
     const simdjson::padded_string_view s(reinterpret_cast<const char*>(read_ptr), tup_size - 2,
                                          tup_size + simdjson::SIMDJSON_PADDING);
     simdjson::ondemand::document d;
-    if (unlikely(parser.iterate(s).get(d) != 0U)) {
-        return false;
-    }
+    parser.iterate(s).get(d);
 
-    bool error = d["id"].get_uint64().get(tup->id) != 0U;
-    error |= d["timestamp"].get_uint64().get(tup->timestamp);
+    [[maybe_unused]] auto error = d["id"].get_uint64().get(tup->id);
+    error = d["timestamp"].get_uint64().get(tup->timestamp);
 
     double temp = NAN;
-    error |= d["load"].get_double().get(temp);
+    error = d["load"].get_double().get(temp);
     tup->load = static_cast<float>(temp);
 
-    error |= d["load_avg_1"].get_double().get(temp);
+    error = d["load_avg_1"].get_double().get(temp);
     tup->load_avg_1 = static_cast<float>(temp);
 
-    error |= d["load_avg_5"].get_double().get(temp);
+    error = d["load_avg_5"].get_double().get(temp);
     tup->load_avg_5 = static_cast<float>(temp);
 
-    error |= d["load_avg_15"].get_double().get(temp);
+    error = d["load_avg_15"].get_double().get(temp);
     tup->load_avg_15 = static_cast<float>(temp);
 
     std::string_view container_id_view;
-    error |= d["container_id"].get_string().get(container_id_view);
+    error = d["container_id"].get_string().get(container_id_view);
 
-    auto result = tup->set_container_id_from_hex_string(
+    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
         container_id_view.data(), container_id_view.data() + container_id_view.size());
 
-    error |= result.ec != std::errc() ||
-             result.ptr != container_id_view.data() + container_id_view.size();
-    return likely(!error);
+    return true;
 }
 
 IMPL_VISIBILITY bool parse_simdjson_error_codes_early(const std::byte* __restrict__ read_ptr,
@@ -332,33 +289,30 @@ IMPL_VISIBILITY bool parse_simdjson_error_codes_early(const std::byte* __restric
     const simdjson::padded_string_view s(reinterpret_cast<const char*>(read_ptr), tup_size - 2,
                                          tup_size + simdjson::SIMDJSON_PADDING);
     simdjson::ondemand::document d;
-    if (unlikely(parser.iterate(s).get(d) != 0U)) {
-        return false;
-    }
+    parser.iterate(s).get(d);
 
     std::string_view container_id_view;
     double temp = NAN;
     // clang-format off
-    if (unlikely(d["id"].get_uint64().get(tup->id) != 0U)) { return false; }
-    if (unlikely(d["timestamp"].get_uint64().get(tup->timestamp) != 0U)) { return false; }
+    [[maybe_unused]] auto error = d["id"].get_uint64().get(tup->id);
+    error = d["timestamp"].get_uint64().get(tup->timestamp);
 
-    if (unlikely(d["load"].get_double().get(temp) != 0U)) { return false; }
+    error = d["load"].get_double().get(temp);
     tup->load = static_cast<float>(temp);
-    if (unlikely(d["load_avg_1"].get_double().get(temp) != 0U)) { return false; }
+    error = d["load_avg_1"].get_double().get(temp);
     tup->load_avg_1 = static_cast<float>(temp);
-    if (unlikely(d["load_avg_5"].get_double().get(temp) != 0U)) { return false; }
+    error = d["load_avg_5"].get_double().get(temp);
     tup->load_avg_5 = static_cast<float>(temp);
-    if (unlikely(d["load_avg_15"].get_double().get(temp) != 0U)) { return false; }
+    error = d["load_avg_15"].get_double().get(temp);
     tup->load_avg_15 = static_cast<float>(temp);
 
-    if (unlikely(d["container_id"].get_string().get(container_id_view) != 0U)) { return false; }
+    error = d["container_id"].get_string().get(container_id_view);
     // clang-format on
 
-    auto result = tup->set_container_id_from_hex_string(
+    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
         container_id_view.data(), container_id_view.data() + container_id_view.size());
 
-    return likely(result.ec == std::errc() &&
-                  result.ptr == container_id_view.data() + container_id_view.size());
+    return true;
 }
 
 IMPL_VISIBILITY bool parse_simdjson_unescaped(const std::byte* __restrict__ read_ptr,
@@ -385,12 +339,8 @@ IMPL_VISIBILITY bool parse_simdjson_unescaped(const std::byte* __restrict__ read
             tup->load_avg_15 = static_cast<float>(static_cast<double>(field.value()));
         } else if (key == "container_id"sv) {
             std::string_view container_id_view = field.value();
-            auto result = tup->set_container_id_from_hex_string(
+            [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
                 container_id_view.data(), container_id_view.data() + container_id_view.size());
-            if (unlikely(result.ec != std::errc() ||
-                         result.ptr != container_id_view.data() + container_id_view.size())) {
-                throw std::invalid_argument("container_id");
-            }
         }
     }
 
