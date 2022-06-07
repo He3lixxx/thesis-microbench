@@ -123,7 +123,6 @@ using SerializerFunc = void (*)(const NativeTuple&, std::vector<std::byte>*);
 template <SerializerFunc serialize>
 void generate_tuples(std::vector<std::byte>* memory,
                      size_t target_memory_size,
-                     std::vector<tuple_size_t>* tuple_sizes,
                      std::mutex* mutex) {
     std::mt19937_64 gen(std::random_device{}());
     auto load_distribution = [](std::mt19937_64& generator) {
@@ -164,25 +163,15 @@ void generate_tuples(std::vector<std::byte>* memory,
 
         {
             std::scoped_lock lock(*mutex);
-            if (memory->size() + local_buffer.size() <= target_memory_size) {
-                auto old_memory_size = static_cast<int64_t>(memory->size());
-                auto old_tuple_sizes_size = static_cast<int64_t>(tuple_sizes->size());
-                memory->resize(old_memory_size + local_buffer.size());
-                tuple_sizes->resize(old_tuple_sizes_size + local_tuple_sizes.size());
-
-                std::copy(begin(local_buffer), end(local_buffer), begin(*memory) + old_memory_size);
-                std::copy(begin(local_tuple_sizes), end(local_tuple_sizes),
-                          begin(*tuple_sizes) + old_tuple_sizes_size);
-            } else {
-                auto read_it = begin(local_buffer);
-                for (const auto& tup_size : local_tuple_sizes) {
-                    if (memory->size() + tup_size > target_memory_size) {
-                        return;
-                    }
-                    std::copy_n(read_it, tup_size, std::back_inserter(*memory));
-                    tuple_sizes->push_back(tup_size);
-                    read_it += static_cast<int64_t>(tup_size);
+            auto read_it = begin(local_buffer);
+            for (const auto& tup_size : local_tuple_sizes) {
+                if (memory->size() + tup_size > target_memory_size) {
+                    return;
                 }
+                std::copy_n(reinterpret_cast<const std::byte*>(&tup_size), sizeof(tup_size),
+                            std::back_inserter(*memory));
+                std::copy_n(read_it, tup_size, std::back_inserter(*memory));
+                read_it += static_cast<int64_t>(tup_size);
             }
         }
     }
@@ -194,31 +183,29 @@ using ParseFunc = bool (*)(const std::byte*, tuple_size_t, NativeTuple*);
 template <ParseFunc parse>
 void parse_tuples(ThreadResult* result,
                   const std::vector<std::byte>& memory,
-                  const std::vector<tuple_size_t>& tuple_sizes,
                   const std::atomic<bool>& stop_flag) {
-    const std::byte* const start_ptr = memory.data();
-    const std::byte* read_ptr = start_ptr;
     size_t tuple_index = 0;
-    const size_t tuple_count = tuple_sizes.size();
+    size_t memory_bytes = memory.size();
+    const std::byte* memory_begin = memory.data();
 
     while (!stop_flag.load(std::memory_order_relaxed)) {
         size_t total_bytes_read = 0;
 
         for (size_t i = 0; i < RUN_SIZE; ++i) {
-            if (tuple_index == tuple_count) {
+            if (tuple_index >= memory_bytes) {
                 if constexpr (debug_output) {
                     return;
                 }
-                read_ptr = start_ptr;
                 tuple_index = 0;
             }
 
-            const tuple_size_t tup_size = tuple_sizes[tuple_index];
+            const tuple_size_t tup_size = reinterpret_cast<const tuple_size_t&>(memory[tuple_index]);
+            tuple_index += sizeof(tup_size);
 
             NativeTuple tup{};
             bool success = false;
             try {
-                success = parse(read_ptr, tup_size, &tup);
+                success = parse(memory_begin + tuple_index, tup_size, &tup);
             } catch (...) {
                 success = false;
             }
@@ -228,8 +215,7 @@ void parse_tuples(ThreadResult* result,
             }
             DoNotOptimize(tup);
 
-            read_ptr += tup_size;
-            ++tuple_index;
+            tuple_index += tup_size;
 
             total_bytes_read += tup_size;
 

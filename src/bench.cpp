@@ -135,9 +135,7 @@ int main(int argc, char** argv) {
      * Input Data Generation
      */
     std::vector<std::byte> memory;
-    std::vector<tuple_size_t> tuple_sizes;
     memory.reserve(memory_bytes + 1024);
-    tuple_sizes.reserve(memory_bytes / 64);
 
     {
         auto gen_thread_count = std::max(1U, std::thread::hardware_concurrency() - 1);
@@ -150,7 +148,7 @@ int main(int argc, char** argv) {
         threads.reserve(gen_thread_count);
         std::mutex mutex;
         for (size_t i = 0; i < gen_thread_count; ++i) {
-            threads.emplace_back(generator_func, &memory, memory_bytes, &tuple_sizes, &mutex);
+            threads.emplace_back(generator_func, &memory, memory_bytes, &mutex);
         }
         for (auto& thread : threads) {
             thread.join();
@@ -158,8 +156,7 @@ int main(int argc, char** argv) {
 
         const std::chrono::duration<double> elapsed_seconds =
             std::chrono::high_resolution_clock::now() - timestamp;
-        fmt::print("Generated {} tuples ({} B) in {}s.\n", tuple_sizes.size(), memory.size(),
-                   elapsed_seconds.count());
+        fmt::print("Generated tuples ({} B) in {}s.\n", memory.size(), elapsed_seconds.count());
         // fmt::print("Memory contents:\n{}\n", (char*)(memory.data()));
         // fmt::print("Tuple sizes: {}\n", fmt::join(tuple_sizes, ", "));
     }
@@ -176,7 +173,7 @@ int main(int argc, char** argv) {
     auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
         threads.emplace_back(parser_func, &thread_results[i], std::ref(memory),
-                             std::ref(tuple_sizes), std::ref(stop_flag));
+                             std::ref(stop_flag));
     }
 
     fmt::print(stderr, "Warmup...\n");
