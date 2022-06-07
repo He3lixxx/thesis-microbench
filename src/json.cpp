@@ -18,7 +18,7 @@ using namespace std::literals::string_view_literals;
 // https://github.com/Tencent/rapidjson/blob/master/example/messagereader/messagereader.cpp
 struct NativeTupleHandler
     : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, NativeTupleHandler> {
-    explicit NativeTupleHandler(NativeTuple* tup) : tup_(tup), state_(kExpectObjectStart) {}
+    explicit NativeTupleHandler(NativeTuple* tup) : tup_(tup) {}
 
     bool StartObject() {
         if (unlikely(state_ != kExpectObjectStart)) {
@@ -117,7 +117,7 @@ struct NativeTupleHandler
         kInvalid,
     };
 
-    State state_;
+    State state_{kExpectObjectStart};
 };
 
 IMPL_VISIBILITY void serialize_json(const NativeTuple& tup, std::vector<std::byte>* buf) {

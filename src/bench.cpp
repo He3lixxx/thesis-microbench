@@ -19,23 +19,23 @@
 #include "native.hpp"
 #include "protobuf.hpp"
 
-using std::string_literals::operator""s;
+using std::string_literals::operator""s;  // NOLINT(misc-unused-using-decls): It _is_ used.
 
 std::tuple<double, double, double> mean_stddev_99error_from_samples(
     const std::vector<double>& samples) {
-    double sum = std::accumulate(begin(samples), end(samples), 0.0);
-    double mean = sum / samples.size();
+    const double sum = std::accumulate(begin(samples), end(samples), 0.0);
+    const double mean = sum / static_cast<double>(samples.size());
 
-    double squared_error_sum = 0;
-    for (auto sample : samples) {
-        squared_error_sum += (sample - mean) * (sample - mean);
-    }
+    const double squared_error_sum =
+        std::accumulate(begin(samples), end(samples), 0.0, [&](double acc, double sample) {
+            return acc + (sample - mean) * (sample - mean);
+        });
 
-    double variance = squared_error_sum / (samples.size() - 1);
-    double std_dev = sqrt(variance);
+    const double variance = squared_error_sum / static_cast<double>(samples.size() - 1);
+    const double std_dev = sqrt(variance);
 
     // 99% => z* = 2.58
-    double error = 2.58 * std_dev / sqrt(samples.size());
+    const double error = 2.58 * std_dev / sqrt(static_cast<double>(samples.size()));
 
     return std::make_tuple(mean, std_dev, error);
 }
@@ -247,6 +247,7 @@ int main(int argc, char** argv) {
                bytes_mean, bytes_stddev, (bytes_stddev / bytes_mean * 100), bytes_error,
                (bytes_error / bytes_mean * 100));
 
-    for (auto& thread : threads)
+    for (auto& thread : threads) {
         thread.join();
+    }
 }
