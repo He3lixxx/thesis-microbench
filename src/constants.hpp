@@ -9,4 +9,4 @@ constexpr uint64_t generate_chunk_size = 1;
 constexpr bool debug_output = true;
 #endif
 
-constexpr bool use_std_from_chars = false;
+constexpr bool use_std_from_chars = true;
