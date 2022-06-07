@@ -72,6 +72,10 @@ struct NativeTupleHandler
         }
     }
 
+    bool Uint(unsigned int val) {
+        return Uint64(val);
+    }
+
     bool Uint64(uint64_t val) {
         switch (state_) {
             case kExpectId:
