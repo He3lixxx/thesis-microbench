@@ -58,7 +58,7 @@ struct NativeTuple {
                 auto result =
                     std::from_chars(str + 2 * i, str + 2 * i + 2,
                                     reinterpret_cast<unsigned char&>(container_id[i]), 16);
-                if (result.ec == std::errc()) {
+                if (result.ec != std::errc()) {
                     return result;
                 }
             }
