@@ -1,6 +1,7 @@
 #include <fmt/core.h>
 #include <simdjson.h>
 #include <cxxopts.hpp>
+#include <sys/mman.h>
 
 #include <atomic>
 #include <chrono>
@@ -163,6 +164,9 @@ int main(int argc, char** argv) {
         // fmt::print("Memory contents:\n{}\n", (char*)(memory.data()));
         // fmt::print("Tuple sizes: {}\n", fmt::join(tuple_sizes, ", "));
     }
+
+    madvise(memory.data(), memory.size() * sizeof(memory[0]), MADV_HUGEPAGE);
+    madvise(tuple_sizes.data(), tuple_sizes.size() * sizeof(tuple_sizes[0]), MADV_HUGEPAGE);
 
     /*
      * Actual Benchmark
