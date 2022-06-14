@@ -183,23 +183,28 @@ int main(int argc, char** argv) {
     for (size_t iter = 0; iter < warmup_seconds; ++iter) {
         size_t tuples_sum = 0;
         size_t bytes_sum = 0;
+        size_t latency_sum = 0;
         for (auto& result : thread_results) {
             tuples_sum += result.tuples_read.exchange(0);
             bytes_sum += result.bytes_read.exchange(0);
+            latency_sum += result.latency_sum.exchange(0);
         }
         const auto end = std::chrono::high_resolution_clock::now();
         const std::chrono::duration<double> diff = end - timestamp;
         timestamp = end;
 
+        const auto average_latency_per_tuple = static_cast<double>(latency_sum) / tuples_sum;
         const auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
         const auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
 
-        fmt::print(stderr, "{:11.6g} t/s.  {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
-                   bytes_per_second, bytes_per_second / 1e9);
+        fmt::print(stderr, "{:11.6g} t/s.  {:11.6g} B/s = {:9.4g} GB/s.   {:11.6g} ns / tup\n", tuples_per_second,
+                   bytes_per_second, bytes_per_second / 1e9, average_latency_per_tuple);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
+    std::vector<double> avg_latency_per_second_results;;
+    avg_latency_per_second_results.reserve(1000);
     std::vector<double> tuples_per_second_results;
     tuples_per_second_results.reserve(1000);
     std::vector<double> bytes_per_second_results;
@@ -209,9 +214,11 @@ int main(int argc, char** argv) {
     for (size_t iter = 0; iter < measure_seconds; ++iter) {
         size_t tuples_sum = 0;
         size_t bytes_sum = 0;
+        size_t latency_sum = 0;
         for (auto& result : thread_results) {
             tuples_sum += result.tuples_read.exchange(0);
             bytes_sum += result.bytes_read.exchange(0);
+            latency_sum += result.latency_sum.exchange(0);
         }
         const auto end = std::chrono::high_resolution_clock::now();
         const std::chrono::duration<double> diff = end - timestamp;
@@ -220,11 +227,14 @@ int main(int argc, char** argv) {
         const auto tuples_per_second = static_cast<double>(tuples_sum) / diff.count();
         const auto bytes_per_second = static_cast<double>(bytes_sum) / diff.count();
 
+        const auto average_latency_per_tuple = static_cast<double>(latency_sum) / tuples_sum;
+
+        avg_latency_per_second_results.push_back(average_latency_per_tuple);
         tuples_per_second_results.push_back(tuples_per_second);
         bytes_per_second_results.push_back(bytes_per_second);
 
-        fmt::print(stderr, "{:11.6g} t/s.  {:11.6g} B/s = {:9.4g} GB/s\n", tuples_per_second,
-                   bytes_per_second, bytes_per_second / 1e9);
+        fmt::print(stderr, "{:11.6g} t/s.  {:11.6g} B/s = {:9.4g} GB/s.   {:11.6g} ns / tup\n", tuples_per_second,
+                   bytes_per_second, bytes_per_second / 1e9, average_latency_per_tuple);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -246,6 +256,14 @@ int main(int argc, char** argv) {
                "{:11.6g} B/s (= {:6.3f}% of mean)\n",
                bytes_mean, bytes_stddev, (bytes_stddev / bytes_mean * 100), bytes_error,
                (bytes_error / bytes_mean * 100));
+
+    auto [latency_mean, latency_stddev, latency_error] =
+        mean_stddev_99error_from_samples(avg_latency_per_second_results);
+    fmt::print(stderr,
+               "mean: {:11.6g} ns / tup.   stddev: {:11.6g} ns/tup (= {:6.3f}% of mean).   99% error: "
+               "{:11.6g} ns / tup (= {:6.3f}% of mean)\n",
+               latency_mean, latency_stddev, (latency_stddev / latency_mean * 100), latency_error,
+               (latency_error / latency_mean * 100));
 
     for (auto& thread : threads) {
         thread.join();

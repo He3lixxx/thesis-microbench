@@ -115,6 +115,7 @@ inline void DoNotOptimize(Tp const& value) {
 
 constexpr size_t cacheline_size = 64;
 struct ThreadResult {
+    alignas(cacheline_size) std::atomic<size_t> latency_sum = 0;
     alignas(cacheline_size) std::atomic<size_t> tuples_read = 0;
     alignas(cacheline_size) std::atomic<size_t> bytes_read = 0;
 };
@@ -218,7 +219,11 @@ void parse_tuples(ThreadResult* result,
             NativeTuple tup{};
             bool success = false;
             try {
+                const auto before = std::chrono::steady_clock::now();
                 success = parse(read_ptr, tup_size, &tup);
+                const auto after = std::chrono::steady_clock::now();
+                result->latency_sum += static_cast<std::chrono::nanoseconds>(after-before).count();
+
             } catch (...) {
                 success = false;
             }
@@ -227,6 +232,7 @@ void parse_tuples(ThreadResult* result,
                 exit(1);  // NOLINT(concurrency-mt-unsafe)
             }
             DoNotOptimize(tup);
+
 
             read_ptr += tup_size;
             ++tuple_index;
