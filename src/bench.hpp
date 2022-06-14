@@ -14,6 +14,9 @@
 #include "constants.hpp"
 #include "parse.hpp"
 
+#include <stdlib.h>
+#include <sys/mman.h>
+
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define likely(x) __builtin_expect(!!(x), 1)
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
@@ -119,19 +122,45 @@ struct ThreadResult {
     alignas(cacheline_size) std::atomic<size_t> bytes_read = 0;
 };
 
-using SerializerFunc = void (*)(const NativeTuple&, std::vector<std::byte>*);
+template <typename T>
+struct thp_allocator {
+    constexpr static std::size_t HUGE_PAGE_SIZE = 2 * 1024 * 1024;
+
+    using value_type = T;
+
+    thp_allocator() = default;
+
+    T* allocate(std::size_t n) {
+        void* p = nullptr;
+        posix_memalign(&p, HUGE_PAGE_SIZE, n * sizeof(T));
+        if (p == nullptr) {
+            throw std::bad_alloc();
+        }
+
+        madvise(p, n * sizeof(T), MADV_HUGEPAGE);
+        return static_cast<T*>(p);
+    }
+
+    void deallocate(T* p, std::size_t /*n*/) { std::free(p); }
+};
+
+
+using MemoryBufferT = std::vector<std::byte, thp_allocator<std::byte>>;
+using TupleSizeBufferT = std::vector<tuple_size_t, thp_allocator<tuple_size_t>>;
+
+using SerializerFunc = void (*)(const NativeTuple&, MemoryBufferT*);
 template <SerializerFunc serialize>
-void generate_tuples(std::vector<std::byte>* memory,
+void generate_tuples(MemoryBufferT* memory,
                      size_t target_memory_size,
-                     std::vector<tuple_size_t>* tuple_sizes,
+                     TupleSizeBufferT* tuple_sizes,
                      std::mutex* mutex) {
     std::mt19937_64 gen(std::random_device{}());
     auto load_distribution = [](std::mt19937_64& generator) {
         return static_cast<double>(generator()) / static_cast<double>(std::mt19937_64::max());
     };
 
-    std::vector<std::byte> local_buffer;
-    std::vector<tuple_size_t> local_tuple_sizes;
+    MemoryBufferT local_buffer;
+    TupleSizeBufferT local_tuple_sizes;
     local_buffer.reserve(256 * generate_chunk_size);
     local_tuple_sizes.reserve(generate_chunk_size);
 
@@ -193,8 +222,8 @@ constexpr size_t RUN_SIZE = 1024ULL * 16;
 using ParseFunc = bool (*)(const std::byte*, tuple_size_t, NativeTuple*);
 template <ParseFunc parse>
 void parse_tuples(ThreadResult* result,
-                  const std::vector<std::byte>& memory,
-                  const std::vector<tuple_size_t>& tuple_sizes,
+                  const MemoryBufferT& memory,
+                  const TupleSizeBufferT& tuple_sizes,
                   const std::atomic<bool>& stop_flag) {
     const std::byte* const start_ptr = memory.data();
     const std::byte* read_ptr = start_ptr;

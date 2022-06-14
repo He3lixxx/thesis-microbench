@@ -6,7 +6,7 @@
 #include "bench.hpp"
 #include "flatbuffer.hpp"
 
-IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, std::vector<std::byte>* buf) {
+IMPL_VISIBILITY void serialize_flatbuffer(const NativeTuple& tup, MemoryBufferT* buf) {
     thread_local flatbuffers::FlatBufferBuilder builder(1024);
     auto hash_bytes_span = flatbuffers::make_span(
         reinterpret_cast<const std::array<uint8_t, HASH_BYTES>&>(tup.container_id));
@@ -48,5 +48,5 @@ IMPL_VISIBILITY bool parse_flatbuffer(const std::byte* __restrict__ read_ptr,
 }
 
 // clang-format off
-template void generate_tuples<serialize_flatbuffer>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
-template void parse_tuples<parse_flatbuffer>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
+template void generate_tuples<serialize_flatbuffer>(MemoryBufferT* memory, size_t target_memory_size, TupleSizeBufferT* tuple_sizes, std::mutex* mutex);
+template void parse_tuples<parse_flatbuffer>(ThreadResult* result, const MemoryBufferT& memory, const TupleSizeBufferT& tuple_sizes, const std::atomic<bool>& stop_flag);

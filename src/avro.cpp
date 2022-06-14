@@ -8,7 +8,7 @@
 #include "avro.hpp"
 #include "bench.hpp"
 
-IMPL_VISIBILITY void serialize_avro(const NativeTuple& tup, std::vector<std::byte>* buf) {
+IMPL_VISIBILITY void serialize_avro(const NativeTuple& tup, MemoryBufferT* buf) {
     bench_avro::Tuple t;
 
     // unsigned to signed here was implementation defined up to c++17.
@@ -81,5 +81,5 @@ IMPL_VISIBILITY bool parse_avro(const std::byte* __restrict__ read_ptr,
 }
 
 // clang-format off
-template void generate_tuples<serialize_avro>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
-template void parse_tuples<parse_avro>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
+template void generate_tuples<serialize_avro>(MemoryBufferT* memory, size_t target_memory_size, TupleSizeBufferT* tuple_sizes, std::mutex* mutex);
+template void parse_tuples<parse_avro>(ThreadResult* result, const MemoryBufferT& memory, const TupleSizeBufferT& tuple_sizes, const std::atomic<bool>& stop_flag);

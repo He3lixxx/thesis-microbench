@@ -4,7 +4,7 @@
 #include "bench.hpp"
 #include "protobuf.hpp"
 
-IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std::byte>* buf) {
+IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, MemoryBufferT* buf) {
     Tuple t;
     t.set_id(tup.id);
     t.set_timestamp(tup.timestamp);
@@ -44,5 +44,5 @@ IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
 }
 
 // clang-format off
-template void generate_tuples<serialize_protobuf>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
-template void parse_tuples<parse_protobuf>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
+template void generate_tuples<serialize_protobuf>(MemoryBufferT* memory, size_t target_memory_size, TupleSizeBufferT* tuple_sizes, std::mutex* mutex);
+template void parse_tuples<parse_protobuf>(ThreadResult* result, const MemoryBufferT& memory, const TupleSizeBufferT& tuple_sizes, const std::atomic<bool>& stop_flag);

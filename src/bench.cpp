@@ -1,7 +1,6 @@
 #include <fmt/core.h>
 #include <simdjson.h>
 #include <cxxopts.hpp>
-#include <sys/mman.h>
 
 #include <atomic>
 #include <chrono>
@@ -27,10 +26,9 @@ std::tuple<double, double, double> mean_stddev_99error_from_samples(
     const double sum = std::accumulate(begin(samples), end(samples), 0.0);
     const double mean = sum / static_cast<double>(samples.size());
 
-    const double squared_error_sum =
-        std::accumulate(begin(samples), end(samples), 0.0, [&](double acc, double sample) {
-            return acc + (sample - mean) * (sample - mean);
-        });
+    const double squared_error_sum = std::accumulate(
+        begin(samples), end(samples), 0.0,
+        [&](double acc, double sample) { return acc + (sample - mean) * (sample - mean); });
 
     const double variance = squared_error_sum / static_cast<double>(samples.size() - 1);
     const double std_dev = sqrt(variance);
@@ -135,8 +133,8 @@ int main(int argc, char** argv) {
     /*
      * Input Data Generation
      */
-    std::vector<std::byte> memory;
-    std::vector<tuple_size_t> tuple_sizes;
+    std::vector<std::byte, thp_allocator<std::byte>> memory;
+    std::vector<tuple_size_t, thp_allocator<tuple_size_t>> tuple_sizes;
     memory.reserve(memory_bytes + 1024);
     tuple_sizes.reserve(memory_bytes / 64);
 
@@ -164,9 +162,6 @@ int main(int argc, char** argv) {
         // fmt::print("Memory contents:\n{}\n", (char*)(memory.data()));
         // fmt::print("Tuple sizes: {}\n", fmt::join(tuple_sizes, ", "));
     }
-
-    madvise(memory.data(), memory.size() * sizeof(memory[0]), MADV_HUGEPAGE);
-    madvise(tuple_sizes.data(), tuple_sizes.size() * sizeof(tuple_sizes[0]), MADV_HUGEPAGE);
 
     /*
      * Actual Benchmark
