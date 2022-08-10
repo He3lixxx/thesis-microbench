@@ -6,12 +6,6 @@
 
 IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std::byte>* buf) {
     thread_local Tuple t;
-    t.set_id(tup.id);
-    t.set_timestamp(tup.timestamp);
-    t.set_load(tup.load);
-    t.set_load_avg_1(tup.load_avg_1);
-    t.set_load_avg_5(tup.load_avg_5);
-    t.set_load_avg_15(tup.load_avg_15);
     t.set_container_id(reinterpret_cast<const char*>(tup.container_id.data()),
                        tup.container_id.size());
 
@@ -31,12 +25,6 @@ IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
         return false;
     }
 
-    tup->id = t.id();
-    tup->timestamp = t.timestamp();
-    tup->load = t.load();
-    tup->load_avg_1 = t.load_avg_1();
-    tup->load_avg_5 = t.load_avg_5();
-    tup->load_avg_15 = t.load_avg_15();
     std::copy_n(t.container_id().data(), HASH_BYTES,
                 reinterpret_cast<char*>(tup->container_id.data()));
 

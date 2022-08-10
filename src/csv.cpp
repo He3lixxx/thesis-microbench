@@ -13,9 +13,7 @@ IMPL_VISIBILITY void serialize_csv(const NativeTuple& tup, std::vector<std::byte
     local_buffer.clear();
 
     fmt::format_to(std::back_inserter(local_buffer),
-                   FMT_COMPILE("{},{},{:f},{:f},{:f},{:f},{:02x}\0"), tup.id, tup.timestamp,
-                   tup.load, tup.load_avg_1, tup.load_avg_5, tup.load_avg_15,
-                   fmt::join(tup.container_id, ""));
+                   FMT_COMPILE("{:02x}\0"), fmt::join(tup.container_id, ""));
 
     const auto old_size = buf->size();
     buf->resize(old_size + local_buffer.size());
@@ -30,37 +28,7 @@ IMPL_VISIBILITY bool parse_csv_std(const std::byte* __restrict__ read_ptr,
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
 
-    auto result = std::from_chars(str_ptr, str_end, tup->id);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = std::from_chars(result.ptr + 1, str_end, tup->timestamp);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = std::from_chars(result.ptr + 1, str_end, tup->load);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_1);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_5);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = std::from_chars(result.ptr + 1, str_end, tup->load_avg_15);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = tup->set_container_id_from_hex_string(result.ptr + 1, str_end);
+    auto result = tup->set_container_id_from_hex_string(str_ptr, str_end);
     return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
 
 #else
@@ -75,41 +43,7 @@ IMPL_VISIBILITY bool parse_csv_fast_float(const std::byte* __restrict__ read_ptr
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
 
-    auto result = std::from_chars(str_ptr, str_end, tup->id);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = std::from_chars(result.ptr + 1, str_end, tup->timestamp);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    auto ff_result = fast_float::from_chars(result.ptr + 1, str_end, tup->load);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_1);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_5);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_15);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    result = tup->set_container_id_from_hex_string(ff_result.ptr + 1, str_end);
+    auto result = tup->set_container_id_from_hex_string(str_ptr, str_end);
     return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
 }
 
@@ -119,41 +53,7 @@ IMPL_VISIBILITY bool parse_csv_fast_float_custom(const std::byte* __restrict__ r
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
 
-    auto result = parse_uint_str(str_ptr, str_end, tup->id);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    result = parse_uint_str(result.ptr + 1, str_end, tup->timestamp);
-    if (unlikely(result.ec != std::errc() || result.ptr >= str_end - 1 || *result.ptr != ',')) {
-        return false;
-    }
-
-    auto ff_result = fast_float::from_chars(result.ptr + 1, str_end, tup->load);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_1);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_5);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    ff_result = fast_float::from_chars(ff_result.ptr + 1, str_end, tup->load_avg_15);
-    if (unlikely(ff_result.ec != std::errc() || ff_result.ptr >= str_end - 1 ||
-                 *ff_result.ptr != ',')) {
-        return false;
-    }
-
-    result = tup->set_container_id_from_hex_string(ff_result.ptr + 1, str_end);
+    auto result = tup->set_container_id_from_hex_string(str_ptr, str_end);
     return likely(result.ec == std::errc() && result.ptr == str_end - 1 && *result.ptr == '\0');
 }
 
@@ -163,10 +63,9 @@ IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_pt
     const auto* const str_ptr = reinterpret_cast<const char*>(read_ptr);
     const auto* const str_end = str_ptr + tup_size;
 
-    io::CSVReader<7> in("", str_ptr, str_end);
+    io::CSVReader<1> in("", str_ptr, str_end);
     char* container_id = nullptr;
-    if (unlikely(!in.read_row(tup->id, tup->timestamp, tup->load, tup->load_avg_1, tup->load_avg_5,
-                              tup->load_avg_15, container_id))) {
+    if (unlikely(!in.read_row(container_id))) {
         return false;
     }
 

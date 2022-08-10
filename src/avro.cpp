@@ -14,12 +14,6 @@ IMPL_VISIBILITY void serialize_avro(const NativeTuple& tup, std::vector<std::byt
     // unsigned to signed here was implementation defined up to c++17.
     // With c++20, we're guaranteed that uint64_t -> int64_t -> uint64_t gives the same result.
     // (https://en.cppreference.com/w/cpp/language/implicit_conversion#Integral_conversions)
-    t.id = static_cast<int64_t>(tup.id);
-    t.timestamp = static_cast<int64_t>(tup.timestamp);
-    t.load = tup.load;
-    t.load_avg_1 = tup.load_avg_1;
-    t.load_avg_5 = tup.load_avg_5;
-    t.load_avg_15 = tup.load_avg_15;
     std::copy_n(reinterpret_cast<const uint8_t*>(tup.container_id.data()), HASH_BYTES,
                 t.container_id.data());
 
@@ -68,12 +62,6 @@ IMPL_VISIBILITY bool parse_avro(const std::byte* __restrict__ read_ptr,
     bench_avro::Tuple t;
     avro::decode(*d, t);
 
-    tup->id = t.id;
-    tup->timestamp = t.timestamp;
-    tup->load = t.load;
-    tup->load_avg_1 = t.load_avg_1;
-    tup->load_avg_5 = t.load_avg_5;
-    tup->load_avg_15 = t.load_avg_15;
     std::copy_n(reinterpret_cast<const std::byte*>(t.container_id.data()), HASH_BYTES,
                 tup->container_id.data());
 

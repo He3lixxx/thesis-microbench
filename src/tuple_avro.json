@@ -2,12 +2,6 @@
     "type": "record",
     "name": "Tuple",
     "fields": [
-        {"name": "id", "type": "long"},
-        {"name": "timestamp", "type": "long"},
-        {"name": "load", "type": "float"},
-        {"name": "load_avg_1", "type": "float"},
-        {"name": "load_avg_5", "type": "float"},
-        {"name": "load_avg_15", "type": "float"},
         {"name": "container_id", "type": {"name": "Hash", "type":"fixed", "size": 32}}
     ]
 }

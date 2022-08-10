@@ -39,12 +39,6 @@ bool vectorizable_any_of(InputIt first, InputIt last, Pred pred) {
 }
 
 struct NativeTuple {
-    uint64_t id;
-    uint64_t timestamp;
-    float load;
-    float load_avg_1;
-    float load_avg_5;
-    float load_avg_15;
     std::array<std::byte, HASH_BYTES> container_id;
 
     [[nodiscard]] std::from_chars_result set_container_id_from_hex_string(const char* str,
@@ -74,36 +68,6 @@ struct NativeTuple {
             }
         }
         return {str + 2 * HASH_BYTES, std::errc()};
-    }
-};
-
-template <>
-struct fmt::formatter<NativeTuple> {
-    [[nodiscard]] static constexpr auto parse(const format_parse_context& ctx)
-        -> decltype(ctx.begin()) {
-        // std::find is not constexpr for some old compiler on lab machines.
-        const auto* it = ctx.begin();
-        const auto* end_it = ctx.end();
-        while (it != end_it && *it != '}') {
-            ++it;
-        }
-        return it;
-    }
-
-    template <typename FormatContext>
-    auto format(const NativeTuple& tup, FormatContext& ctx) const  // NOLINT(runtime/references)
-        -> decltype(ctx.out()) {
-        return format_to(ctx.out(), R"(NativeTuple(
-    id={},
-    timestamp={},
-    load={:f},
-    load_avg_1={:f},
-    load_avg_5={:f},
-    load_avg_15={:f},
-    container_id={:02x}
-))",
-                         tup.id, tup.timestamp, tup.load, tup.load_avg_1, tup.load_avg_5,
-                         tup.load_avg_15, fmt::join(tup.container_id, ""));
     }
 };
 
@@ -141,12 +105,6 @@ void generate_tuples(std::vector<std::byte>* memory,
 
         for (uint64_t i = 0; i < generate_chunk_size; ++i) {
             NativeTuple tup;  // NOLINT(cppcoreguidelines-pro-type-member-init)
-            tup.id = gen();
-            tup.timestamp = gen();
-            tup.load = load_distribution(gen);
-            tup.load_avg_1 = load_distribution(gen);
-            tup.load_avg_5 = load_distribution(gen);
-            tup.load_avg_15 = load_distribution(gen);
             static_assert(HASH_BYTES % 8 == 0);
             std::generate_n(reinterpret_cast<uint64_t*>(tup.container_id.data()),
                             sizeof(tup.container_id) / sizeof(tup.container_id[0]) / 8,
@@ -156,10 +114,6 @@ void generate_tuples(std::vector<std::byte>* memory,
             serialize(tup, &local_buffer);
             tuple_size_t tup_size = local_buffer.size() - old_size;
             local_tuple_sizes.push_back(tup_size);
-
-            if constexpr (debug_output) {
-                fmt::print("Serialized {}\n", tup);
-            }
         }
 
         {
@@ -232,10 +186,6 @@ void parse_tuples(ThreadResult* result,
             ++tuple_index;
 
             total_bytes_read += tup_size;
-
-            if constexpr (debug_output) {
-                fmt::print("Thread read tuple {}\n", tup);
-            }
         }
 
         result->tuples_read += RUN_SIZE;

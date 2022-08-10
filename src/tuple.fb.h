@@ -31,43 +31,13 @@ FLATBUFFERS_STRUCT_END(Hash, 32);
 struct Tuple FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   typedef TupleBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_ID = 4,
-    VT_TIMESTAMP = 6,
-    VT_LOAD = 8,
-    VT_LOAD_AVG_1 = 10,
-    VT_LOAD_AVG_5 = 12,
-    VT_LOAD_AVG_15 = 14,
-    VT_CONTAINER_ID = 16
+    VT_CONTAINER_ID = 4
   };
-  uint64_t id() const {
-    return GetField<uint64_t>(VT_ID, 0);
-  }
-  uint64_t timestamp() const {
-    return GetField<uint64_t>(VT_TIMESTAMP, 0);
-  }
-  float load() const {
-    return GetField<float>(VT_LOAD, 0.0f);
-  }
-  float load_avg_1() const {
-    return GetField<float>(VT_LOAD_AVG_1, 0.0f);
-  }
-  float load_avg_5() const {
-    return GetField<float>(VT_LOAD_AVG_5, 0.0f);
-  }
-  float load_avg_15() const {
-    return GetField<float>(VT_LOAD_AVG_15, 0.0f);
-  }
   const Hash *container_id() const {
     return GetStruct<const Hash *>(VT_CONTAINER_ID);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<uint64_t>(verifier, VT_ID, 8) &&
-           VerifyField<uint64_t>(verifier, VT_TIMESTAMP, 8) &&
-           VerifyField<float>(verifier, VT_LOAD, 4) &&
-           VerifyField<float>(verifier, VT_LOAD_AVG_1, 4) &&
-           VerifyField<float>(verifier, VT_LOAD_AVG_5, 4) &&
-           VerifyField<float>(verifier, VT_LOAD_AVG_15, 4) &&
            VerifyField<Hash>(verifier, VT_CONTAINER_ID, 1) &&
            verifier.EndTable();
   }
@@ -77,24 +47,6 @@ struct TupleBuilder {
   typedef Tuple Table;
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_id(uint64_t id) {
-    fbb_.AddElement<uint64_t>(Tuple::VT_ID, id, 0);
-  }
-  void add_timestamp(uint64_t timestamp) {
-    fbb_.AddElement<uint64_t>(Tuple::VT_TIMESTAMP, timestamp, 0);
-  }
-  void add_load(float load) {
-    fbb_.AddElement<float>(Tuple::VT_LOAD, load, 0.0f);
-  }
-  void add_load_avg_1(float load_avg_1) {
-    fbb_.AddElement<float>(Tuple::VT_LOAD_AVG_1, load_avg_1, 0.0f);
-  }
-  void add_load_avg_5(float load_avg_5) {
-    fbb_.AddElement<float>(Tuple::VT_LOAD_AVG_5, load_avg_5, 0.0f);
-  }
-  void add_load_avg_15(float load_avg_15) {
-    fbb_.AddElement<float>(Tuple::VT_LOAD_AVG_15, load_avg_15, 0.0f);
-  }
   void add_container_id(const Hash *container_id) {
     fbb_.AddStruct(Tuple::VT_CONTAINER_ID, container_id);
   }
@@ -111,21 +63,9 @@ struct TupleBuilder {
 
 inline flatbuffers::Offset<Tuple> CreateTuple(
     flatbuffers::FlatBufferBuilder &_fbb,
-    uint64_t id = 0,
-    uint64_t timestamp = 0,
-    float load = 0.0f,
-    float load_avg_1 = 0.0f,
-    float load_avg_5 = 0.0f,
-    float load_avg_15 = 0.0f,
     const Hash *container_id = nullptr) {
   TupleBuilder builder_(_fbb);
-  builder_.add_timestamp(timestamp);
-  builder_.add_id(id);
   builder_.add_container_id(container_id);
-  builder_.add_load_avg_15(load_avg_15);
-  builder_.add_load_avg_5(load_avg_5);
-  builder_.add_load_avg_1(load_avg_1);
-  builder_.add_load(load);
   return builder_.Finish();
 }
 
