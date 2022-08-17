@@ -257,26 +257,26 @@ IMPL_VISIBILITY bool parse_simdjson_error_codes(const std::byte* __restrict__ re
     simdjson::ondemand::document d;
     parser.iterate(s).get(d);
 
-    [[maybe_unused]] auto error = d["id"].get_uint64().get(tup->id);
-    error = d["timestamp"].get_uint64().get(tup->timestamp);
+    (void)d["id"].get_uint64().get(tup->id);
+    (void)d["timestamp"].get_uint64().get(tup->timestamp);
 
     double temp = NAN;
-    error = d["load"].get_double().get(temp);
+    (void)d["load"].get_double().get(temp);
     tup->load = static_cast<float>(temp);
 
-    error = d["load_avg_1"].get_double().get(temp);
+    (void)d["load_avg_1"].get_double().get(temp);
     tup->load_avg_1 = static_cast<float>(temp);
 
-    error = d["load_avg_5"].get_double().get(temp);
+    (void)d["load_avg_5"].get_double().get(temp);
     tup->load_avg_5 = static_cast<float>(temp);
 
-    error = d["load_avg_15"].get_double().get(temp);
+    (void)d["load_avg_15"].get_double().get(temp);
     tup->load_avg_15 = static_cast<float>(temp);
 
     std::string_view container_id_view;
-    error = d["container_id"].get_string().get(container_id_view);
+    (void)d["container_id"].get_string().get(container_id_view);
 
-    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
+    (void)tup->set_container_id_from_hex_string(
         container_id_view.data(), container_id_view.data() + container_id_view.size());
 
     return true;
@@ -294,22 +294,22 @@ IMPL_VISIBILITY bool parse_simdjson_error_codes_early(const std::byte* __restric
     std::string_view container_id_view;
     double temp = NAN;
     // clang-format off
-    [[maybe_unused]] auto error = d["id"].get_uint64().get(tup->id);
-    error = d["timestamp"].get_uint64().get(tup->timestamp);
+    (void)d["id"].get_uint64().get(tup->id);
+    (void)d["timestamp"].get_uint64().get(tup->timestamp);
 
-    error = d["load"].get_double().get(temp);
+    (void)d["load"].get_double().get(temp);
     tup->load = static_cast<float>(temp);
-    error = d["load_avg_1"].get_double().get(temp);
+    (void)d["load_avg_1"].get_double().get(temp);
     tup->load_avg_1 = static_cast<float>(temp);
-    error = d["load_avg_5"].get_double().get(temp);
+    (void)d["load_avg_5"].get_double().get(temp);
     tup->load_avg_5 = static_cast<float>(temp);
-    error = d["load_avg_15"].get_double().get(temp);
+    (void)d["load_avg_15"].get_double().get(temp);
     tup->load_avg_15 = static_cast<float>(temp);
 
-    error = d["container_id"].get_string().get(container_id_view);
+    (void)d["container_id"].get_string().get(container_id_view);
     // clang-format on
 
-    [[maybe_unused]] auto result = tup->set_container_id_from_hex_string(
+    (void)tup->set_container_id_from_hex_string(
         container_id_view.data(), container_id_view.data() + container_id_view.size());
 
     return true;
