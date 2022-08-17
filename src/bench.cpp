@@ -94,26 +94,26 @@ int main(int argc, char** argv) {
 
     // clang-format off
     const std::map generator_parser_map{
-        std::make_pair("native"s, std::make_tuple(generate_tuples<serialize_native>, parse_tuples<parse_native>)),
+        std::make_pair("native"s, std::make_tuple(generate_tuples<serialize_native>, static_cast<ParseFunc>(parse_native))),
 
-        std::make_pair("rapidjson"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_rapidjson>)),
-        std::make_pair("rapidjsoninsitu"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_rapidjson_insitu>)),
-        std::make_pair("rapidjsonsax"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_rapidjson_sax>)),
+        std::make_pair("rapidjson"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_rapidjson))),
+        std::make_pair("rapidjsoninsitu"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_rapidjson_insitu))),
+        std::make_pair("rapidjsonsax"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_rapidjson_sax))),
 
-        std::make_pair("simdjson"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson>)),
-        std::make_pair("simdjsonec"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_error_codes>)),
-        std::make_pair("simdjsonece"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_error_codes_early>)),
-        std::make_pair("simdjsonu"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_unescaped>)),
-        std::make_pair("simdjsonooo"s, std::make_tuple(generate_tuples<serialize_json>, parse_tuples<parse_simdjson_out_of_order>)),
+        std::make_pair("simdjson"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_simdjson))),
+        std::make_pair("simdjsonec"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_simdjson_error_codes))),
+        std::make_pair("simdjsonece"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_simdjson_error_codes_early))),
+        std::make_pair("simdjsonu"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_simdjson_unescaped))),
+        std::make_pair("simdjsonooo"s, std::make_tuple(generate_tuples<serialize_json>, static_cast<ParseFunc>(parse_simdjson_out_of_order))),
 
-        std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>, parse_tuples<parse_flatbuffer>)),
-        std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>, parse_tuples<parse_protobuf>)),
-        std::make_pair("avro"s, std::make_tuple(generate_tuples<serialize_avro>, parse_tuples<parse_avro>)),
+        std::make_pair("flatbuf"s, std::make_tuple(generate_tuples<serialize_flatbuffer>, static_cast<ParseFunc>(parse_flatbuffer))),
+        std::make_pair("protobuf"s, std::make_tuple(generate_tuples<serialize_protobuf>, static_cast<ParseFunc>(parse_protobuf))),
+        std::make_pair("avro"s, std::make_tuple(generate_tuples<serialize_avro>, static_cast<ParseFunc>(parse_avro))),
 
-        std::make_pair("csvstd"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_std>)),
-        std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_fast_float>)),
-        std::make_pair("csvfastfloatcustom"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_fast_float_custom>)),
-        std::make_pair("csvbenstrasser"s, std::make_tuple(generate_tuples<serialize_csv>, parse_tuples<parse_csv_benstrasser>)),
+        std::make_pair("csvstd"s, std::make_tuple(generate_tuples<serialize_csv>, static_cast<ParseFunc>(parse_csv_std))),
+        std::make_pair("csvfastfloat"s, std::make_tuple(generate_tuples<serialize_csv>, static_cast<ParseFunc>(parse_csv_fast_float))),
+        std::make_pair("csvfastfloatcustom"s, std::make_tuple(generate_tuples<serialize_csv>, static_cast<ParseFunc>(parse_csv_fast_float_custom))),
+        std::make_pair("csvbenstrasser"s, std::make_tuple(generate_tuples<serialize_csv>, static_cast<ParseFunc>(parse_csv_benstrasser))),
     };
     // clang-format on
 
@@ -175,8 +175,8 @@ int main(int argc, char** argv) {
 
     auto timestamp = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(parser_func, &thread_results[i], std::ref(memory),
-                             std::ref(tuple_sizes), std::ref(stop_flag));
+        threads.emplace_back(parse_tuples, &thread_results[i], std::ref(memory),
+                             std::ref(tuple_sizes), std::ref(stop_flag), parser_func);
     }
 
     fmt::print(stderr, "Warmup...\n");

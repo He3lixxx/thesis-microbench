@@ -191,11 +191,11 @@ void generate_tuples(std::vector<std::byte>* memory,
 constexpr size_t RUN_SIZE = 1024ULL * 16;
 
 using ParseFunc = bool (*)(const std::byte*, tuple_size_t, NativeTuple*);
-template <ParseFunc parse>
-void parse_tuples(ThreadResult* result,
+inline void parse_tuples(ThreadResult* result,
                   const std::vector<std::byte>& memory,
                   const std::vector<tuple_size_t>& tuple_sizes,
-                  const std::atomic<bool>& stop_flag) {
+                  const std::atomic<bool>& stop_flag,
+                  ParseFunc parse) {
     const std::byte* const start_ptr = memory.data();
     const std::byte* read_ptr = start_ptr;
     size_t tuple_index = 0;

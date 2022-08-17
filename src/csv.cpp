@@ -177,7 +177,3 @@ IMPL_VISIBILITY bool parse_csv_benstrasser(const std::byte* __restrict__ read_pt
 
 // clang-format off
 template void generate_tuples<serialize_csv>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
-template void parse_tuples<parse_csv_fast_float>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
-template void parse_tuples<parse_csv_fast_float_custom>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
-template void parse_tuples<parse_csv_std>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
-template void parse_tuples<parse_csv_benstrasser>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);

@@ -82,4 +82,3 @@ IMPL_VISIBILITY bool parse_avro(const std::byte* __restrict__ read_ptr,
 
 // clang-format off
 template void generate_tuples<serialize_avro>(std::vector<std::byte>* memory, size_t target_memory_size, std::vector<tuple_size_t>* tuple_sizes, std::mutex* mutex);
-template void parse_tuples<parse_avro>(ThreadResult* result, const std::vector<std::byte>& memory, const std::vector<tuple_size_t>& tuple_sizes, const std::atomic<bool>& stop_flag);
