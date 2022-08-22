@@ -5,11 +5,6 @@ struct Hash {
 table Tuple {
   id:uint64;
   timestamp:uint64;
-  load:float;
-  load_avg_1:float;
-  load_avg_5:float;
-  load_avg_15:float;
-  container_id:Hash;
 }
 
 root_type Tuple;
