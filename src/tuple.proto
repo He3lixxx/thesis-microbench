@@ -4,4 +4,18 @@ option optimize_for = LITE_RUNTIME;
 message Tuple {
   uint64 id = 1;
   uint64 timestamp = 2;
+  uint64 timestamp2 = 3;
+  uint64 timestamp3 = 4;
+  uint64 timestamp4 = 5;
+  uint64 timestamp5 = 6;
+  uint64 timestamp6 = 7;
+  uint64 timestamp7 = 8;
+  uint64 timestamp8 = 9;
+  uint64 timestamp9 = 10;
+  uint64 timestamp10 = 11;
+  uint64 timestamp11 = 12;
+  uint64 timestamp12 = 13;
+  uint64 timestamp13 = 14;
+  uint64 timestamp14 = 15;
+  uint64 timestamp15 = 16;
 }

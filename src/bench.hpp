@@ -41,6 +41,20 @@ bool vectorizable_any_of(InputIt first, InputIt last, Pred pred) {
 struct NativeTuple {
     uint64_t id;
     uint64_t timestamp;
+    uint64_t timestamp2;
+    uint64_t timestamp3;
+    uint64_t timestamp4;
+    uint64_t timestamp5;
+    uint64_t timestamp6;
+    uint64_t timestamp7;
+    uint64_t timestamp8;
+    uint64_t timestamp9;
+    uint64_t timestamp10;
+    uint64_t timestamp11;
+    uint64_t timestamp12;
+    uint64_t timestamp13;
+    uint64_t timestamp14;
+    uint64_t timestamp15;
 };
 
 // https://github.com/google/benchmark/blob/main/include/benchmark/benchmark.h#L412
@@ -79,6 +93,20 @@ void generate_tuples(std::vector<std::byte>* memory,
             NativeTuple tup;  // NOLINT(cppcoreguidelines-pro-type-member-init)
             tup.id = gen() % 100;
             tup.timestamp = gen() % 100;
+            tup.timestamp2 = gen() % 100;
+            tup.timestamp3 = gen() % 100;
+            tup.timestamp4 = gen() % 100;
+            tup.timestamp5 = gen() % 100;
+            tup.timestamp6 = gen() % 100;
+            tup.timestamp7 = gen() % 100;
+            tup.timestamp8 = gen() % 100;
+            tup.timestamp9 = gen() % 100;
+            tup.timestamp10 = gen() % 100;
+            tup.timestamp11 = gen() % 100;
+            tup.timestamp12 = gen() % 100;
+            tup.timestamp13 = gen() % 100;
+            tup.timestamp14 = gen() % 100;
+            tup.timestamp15 = gen() % 100;
 
             auto old_size = static_cast<int64_t>(local_buffer.size());
             serialize(tup, &local_buffer);

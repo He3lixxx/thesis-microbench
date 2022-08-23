@@ -8,6 +8,20 @@ IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std:
     thread_local Tuple t;
     t.set_id(tup.id);
     t.set_timestamp(tup.timestamp);
+    t.set_timestamp2(tup.timestamp2);
+    t.set_timestamp3(tup.timestamp3);
+    t.set_timestamp4(tup.timestamp4);
+    t.set_timestamp5(tup.timestamp5);
+    t.set_timestamp6(tup.timestamp6);
+    t.set_timestamp7(tup.timestamp7);
+    t.set_timestamp8(tup.timestamp8);
+    t.set_timestamp9(tup.timestamp9);
+    t.set_timestamp10(tup.timestamp10);
+    t.set_timestamp11(tup.timestamp11);
+    t.set_timestamp12(tup.timestamp12);
+    t.set_timestamp13(tup.timestamp13);
+    t.set_timestamp14(tup.timestamp14);
+    t.set_timestamp15(tup.timestamp15);
 
     const auto tup_size = t.ByteSizeLong();
     const auto old_buffer_size = buf->size();
@@ -27,6 +41,20 @@ IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
 
     tup->id = t.id();
     tup->timestamp = t.timestamp();
+    tup->timestamp2 = t.timestamp2();
+    tup->timestamp3 = t.timestamp3();
+    tup->timestamp4 = t.timestamp4();
+    tup->timestamp5 = t.timestamp5();
+    tup->timestamp6 = t.timestamp6();
+    tup->timestamp7 = t.timestamp7();
+    tup->timestamp8 = t.timestamp8();
+    tup->timestamp9 = t.timestamp9();
+    tup->timestamp10 = t.timestamp10();
+    tup->timestamp11 = t.timestamp11();
+    tup->timestamp12 = t.timestamp12();
+    tup->timestamp13 = t.timestamp13();
+    tup->timestamp14 = t.timestamp14();
+    tup->timestamp15 = t.timestamp15();
     return true;
 }
 
