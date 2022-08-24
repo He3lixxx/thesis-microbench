@@ -24,7 +24,7 @@ endif()
 # Set Optimization Flags
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fno-omit-frame-pointer")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -fno-omit-frame-pointer -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
 
 set(CMAKE_CXX_FLAGS_ASAN
     "${CMAKE_CXX_FLAGS_DEBUG} -O3 -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer" CACHE STRING
