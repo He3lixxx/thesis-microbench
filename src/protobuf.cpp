@@ -5,7 +5,7 @@
 #include "protobuf.hpp"
 
 IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std::byte>* buf) {
-    Tuple t;
+    thread_local Tuple t;
     t.set_id(tup.id);
     t.set_timestamp(tup.timestamp);
     t.set_load(tup.load);
@@ -26,7 +26,7 @@ IMPL_VISIBILITY void serialize_protobuf(const NativeTuple& tup, std::vector<std:
 IMPL_VISIBILITY bool parse_protobuf(const std::byte* __restrict__ read_ptr,
                                     tuple_size_t tup_size,
                                     NativeTuple* tup) noexcept {
-    Tuple t;
+    thread_local Tuple t;
     if (unlikely(!t.ParseFromArray(read_ptr, static_cast<int>(tup_size)))) {
         return false;
     }
